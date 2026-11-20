@@ -27,6 +27,12 @@ CREATE TABLE IF NOT EXISTS usuario (
     creado            TIMESTAMP NOT NULL DEFAULT now()
 );
 
+-- Version de sesion: la suben solo las acciones administrativas (bloqueo
+-- manual, desactivacion, cambio de rol, restablecimiento de clave) para
+-- revocar las sesiones abiertas. El bloqueo automatico por intentos
+-- fallidos NO la sube (no debe expulsar a quien ya inicio sesion).
+ALTER TABLE usuario ADD COLUMN IF NOT EXISTS version_sesion INTEGER NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS consultante (
     id_consultante SERIAL PRIMARY KEY,
     id_usuario     INTEGER NOT NULL UNIQUE REFERENCES usuario(id_usuario),

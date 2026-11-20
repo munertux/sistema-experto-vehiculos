@@ -8,6 +8,39 @@ from app.logica.servicio_administracion import ServicioAdministracion
 from app.logica.servicio_autenticacion import ServicioAutenticacion
 
 
+def test_bloqueo_automatico_no_expulsa_y_bloqueo_manual_si(conexion_prueba):
+    """Sesion activa + 5 logins fallidos de un tercero -> la sesion sigue
+    valida (evita expulsar a otro usuario a proposito). Bloqueo manual del
+    administrador -> sesion revocada."""
+    adm, aut = ServicioAdministracion(conexion_prueba), ServicioAutenticacion(conexion_prueba)
+    nombre = unico("dos")
+    adm.crear_usuario(nombre, "Clave2026z", "consultante", "Victima DoS")
+    id_u = aut.autenticar(nombre, "Clave2026z")["id_usuario"]
+    version = aut.version_sesion(id_u)
+    for _ in range(5):
+        with pytest.raises(ErrorNegocio):
+            aut.autenticar(nombre, "incorrecta1")
+    with pytest.raises(ErrorNegocio, match="bloqueado"):
+        aut.autenticar(nombre, "Clave2026z")          # el bloqueo impide nuevos ingresos
+    assert aut.sesion_vigente(id_u, "consultante", version)    # pero no cierra la sesion abierta
+    assert aut.version_sesion(id_u) == version
+    adm.bloquear(id_u)
+    assert not aut.sesion_vigente(id_u, "consultante", version)
+    adm.desbloquear(id_u)                           # desbloquear no revive la sesion vieja
+    assert not aut.sesion_vigente(id_u, "consultante", version)
+    assert aut.sesion_vigente(id_u, "consultante", aut.version_sesion(id_u))
+
+
+def test_restablecer_clave_revoca_sesiones(conexion_prueba):
+    adm, aut = ServicioAdministracion(conexion_prueba), ServicioAutenticacion(conexion_prueba)
+    nombre = unico("rst")
+    adm.crear_usuario(nombre, "Clave2026z", "consultante", "Clave Restablecida")
+    id_u = aut.autenticar(nombre, "Clave2026z")["id_usuario"]
+    version = aut.version_sesion(id_u)
+    adm.restablecer_clave(id_u, "Nueva2026x")
+    assert not aut.sesion_vigente(id_u, "consultante", version)
+
+
 def test_sesion_vigente_detecta_bloqueo_inactivacion_y_cambio_de_rol(conexion_prueba):
     adm, aut = ServicioAdministracion(conexion_prueba), ServicioAutenticacion(conexion_prueba)
     nombre = unico("seg")

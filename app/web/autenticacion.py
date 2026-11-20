@@ -34,6 +34,9 @@ def login():
     except ERRORES_USUARIO as exc:
         return render_template("login.html", error=mensaje(exc), usuario=nombre_usuario), 401
     iniciar_sesion(datos)
+    version = getattr(servicio("autenticacion"), "version_sesion", None)
+    if version is not None:
+        session["version_sesion"] = version(datos["id_usuario"])
     destino = _destino_seguro(request.args.get("siguiente"))
     return redirect(destino or url_for(PANEL_ROL[session["rol"]]))
 

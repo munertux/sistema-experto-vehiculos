@@ -154,6 +154,7 @@ class ServicioAdministracion:
         nombres = (consultante or empleado).nombres if (consultante or empleado) else usuario.nombre_usuario
         with self._db.transaccion() as tx:
             self._usuarios.cambiar_rol(usuario.id_usuario, IDS_ROL[rol], tx=tx)
+            self._usuarios.revocar_sesiones(usuario.id_usuario, tx=tx)
             if rol == "consultante" and consultante is None:
                 self._consultantes.crear(usuario.id_usuario, nombres, tx=tx)
             elif rol != "consultante":
@@ -186,6 +187,7 @@ class ServicioAdministracion:
         validar_clave(clave_nueva)
         with self._db.transaccion() as tx:
             self._usuarios.cambiar_hash(usuario.id_usuario, hashear_clave(clave_nueva), tx=tx)
+            self._usuarios.revocar_sesiones(usuario.id_usuario, tx=tx)
             self._bitacora.registrar("usuario", usuario.id_usuario, "modificar", id_empleado,
                                      detalle="Contrasena restablecida por el administrador", tx=tx)
 
@@ -267,5 +269,7 @@ class ServicioAdministracion:
     def _cambiar_estado(self, usuario, estado, accion, id_empleado, detalle):
         with self._db.transaccion() as tx:
             self._usuarios.cambiar_estado(usuario.id_usuario, estado, tx=tx)
+            if estado != "activo":   # bloqueo manual o desactivacion: cierra las sesiones abiertas
+                self._usuarios.revocar_sesiones(usuario.id_usuario, tx=tx)
             self._bitacora.registrar("usuario", usuario.id_usuario, accion, id_empleado,
                                      detalle=f"{usuario.nombre_usuario}: {detalle}", tx=tx)

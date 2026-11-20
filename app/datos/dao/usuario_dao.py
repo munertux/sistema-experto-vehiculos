@@ -83,6 +83,23 @@ class UsuarioDAO(BaseDAO):
             "UPDATE usuario SET estado = 'bloqueado', bloqueado_hasta = now() + make_interval(mins => %s) "
             "WHERE id_usuario = %s", (minutos, id_usuario), tx)
 
+    def version_sesion(self, id_usuario: int, tx=None):
+        """Version de sesion del usuario (None si la columna aun no existe)."""
+        if not getattr(self, "_con_version", False):
+            self._con_version = bool(self._escalar(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = current_schema() "
+                "AND table_name = 'usuario' AND column_name = 'version_sesion'", tx=tx))
+            if not self._con_version:
+                return None
+        return self._escalar("SELECT version_sesion FROM usuario WHERE id_usuario = %s", (id_usuario,), tx)
+
+    def revocar_sesiones(self, id_usuario: int, tx=None) -> int:
+        """Invalida las sesiones abiertas del usuario (accion administrativa)."""
+        if self.version_sesion(id_usuario, tx) is None:
+            return 0
+        return self._ejecutar("UPDATE usuario SET version_sesion = version_sesion + 1 WHERE id_usuario = %s",
+                              (id_usuario,), tx)
+
     def eliminar(self, id_usuario: int, tx=None) -> int:
         """Borra perfil y usuario (limpieza de pruebas; falla si tiene historial)."""
         self._ejecutar("DELETE FROM consultante WHERE id_usuario = %s", (id_usuario,), tx)

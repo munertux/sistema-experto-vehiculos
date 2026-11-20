@@ -71,21 +71,32 @@ class ServicioAutenticacion:
         self._usuarios.registrar_acceso(usuario.id_usuario)
         return self.sesion_de(usuario.id_usuario)
 
-    def sesion_vigente(self, id_usuario: int, rol: str) -> bool:
+    def version_sesion(self, id_usuario: int):
+        """Version de sesion vigente del usuario (se guarda al iniciar sesion)."""
+        return self._usuarios.version_sesion(int(id_usuario))
+
+    def sesion_vigente(self, id_usuario: int, rol: str, version: int = None) -> bool:
         """True si la sesion abierta para (id_usuario, rol) sigue siendo
-        valida: el usuario existe, esta activo (o su bloqueo temporal ya
-        vencio) y conserva el mismo rol. La presentacion lo consulta en
-        cada peticion para cortar sesiones de usuarios bloqueados,
-        desactivados o con cambio de rol."""
+        valida. Solo la invalidan acciones administrativas: bloqueo manual
+        (estado 'bloqueado' sin fecha), desactivacion, cambio de rol,
+        eliminacion o restablecimiento de clave (suben version_sesion).
+        El bloqueo AUTOMATICO por intentos fallidos (con fecha) impide
+        nuevos ingresos pero no cierra sesiones abiertas: si lo hiciera,
+        cualquiera podria expulsar a otro usuario fallando 5 veces con su
+        nombre."""
         try:
             usuario = self._usuarios.obtener(int(id_usuario))
         except (TypeError, ValueError):
             return False
-        if usuario is None or usuario.rol != rol:
+        if usuario is None or usuario.rol != rol or usuario.estado == "inactivo":
             return False
-        if usuario.estado == "activo":
-            return True
-        return usuario.estado == "bloqueado" and usuario.bloqueado_hasta is not None and not usuario.bloqueo_vigente
+        if usuario.estado == "bloqueado" and usuario.bloqueado_hasta is None:
+            return False
+        if version is not None:
+            actual = self._usuarios.version_sesion(usuario.id_usuario)
+            if actual is not None and int(actual) != int(version):
+                return False
+        return True
 
     def sesion_de(self, id_usuario: int) -> dict:
         """Diccionario de sesion acordado con la presentacion."""

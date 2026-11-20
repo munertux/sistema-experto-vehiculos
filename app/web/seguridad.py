@@ -106,8 +106,9 @@ def instalar(app):
 
     @app.before_request
     def revalidar_usuario():
-        """Corta la sesion si el usuario fue bloqueado, desactivado,
-        eliminado o cambio de rol desde que inicio sesion."""
+        """Corta la sesion si un administrador bloqueo, desactivo, elimino,
+        cambio de rol o restablecio la clave del usuario desde que inicio
+        sesion (no por el bloqueo automatico de intentos fallidos)."""
         if request.endpoint == "static" or not session.get("id_usuario"):
             return None
         from app.web.servicios import servicio
@@ -115,7 +116,10 @@ def instalar(app):
         vigente = getattr(svc, "sesion_vigente", None)
         if vigente is None:   # dobles de prueba antiguos sin el metodo
             return None
-        if vigente(session.get("id_usuario"), session.get("rol")):
+        if "version_sesion" not in session:   # sesiones abiertas antes de esta version
+            version = getattr(svc, "version_sesion", None)
+            session["version_sesion"] = version(session["id_usuario"]) if version else None
+        if vigente(session.get("id_usuario"), session.get("rol"), session.get("version_sesion")):
             return None
         session.clear()
         if request.endpoint in ("autenticacion.login", "autenticacion.logout"):
