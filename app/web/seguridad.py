@@ -1,14 +1,18 @@
 # -*- coding: utf-8 -*-
 """Seguridad de la capa web: sesion con expiracion por inactividad,
-control de acceso por rol, proteccion CSRF y cabeceras HTTP."""
+control de acceso por rol, proteccion CSRF, limite de peticiones por IP
+y cabeceras HTTP (HSTS, CSP...)."""
 import hmac
 import secrets
 import time
 from datetime import timedelta
 from functools import wraps
 
-from flask import (abort, flash, jsonify, redirect, render_template, request,
-                   session, url_for)
+from flask import (abort, current_app, flash, jsonify, redirect, render_template,
+                   request, session, url_for)
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+from app.web.limitador import LimitadorVentana, normalizar_ip
 
 MINUTOS_INACTIVIDAD = 15
 ROLES = ("consultante", "ingeniero", "administrador")
@@ -26,6 +30,58 @@ PANEL_ROL = {
 METODOS_INSEGUROS = {"POST", "PUT", "PATCH", "DELETE"}
 CLAVES_SESION = ("id_usuario", "nombre_usuario", "rol", "nombres",
                  "id_consultante", "id_empleado")
+
+# Limites por IP (maximo de POST, ventana en segundos). Se pueden
+# sobrescribir con app.config (pruebas).
+LIMITES_POR_DEFECTO = {
+    "LIMITE_LOGIN_IP": (20, 300),         # 20 intentos de ingreso cada 5 min por IP
+    "LIMITE_CLAVE_IP": (10, 300),         # 10 cambios de clave cada 5 min por IP
+    "LIMITE_CLAVE_USUARIO": (5, 900),     # 5 fallos de la clave actual cada 15 min por usuario
+}
+ENDPOINTS_LIMITADOS = {
+    "autenticacion.login": "LIMITE_LOGIN_IP",
+    "autenticacion.cambiar_clave": "LIMITE_CLAVE_IP",
+}
+CDN_D3 = "https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/"
+# Sin 'unsafe-inline' en scripts: todo el JS esta en app/static. Los estilos
+# admiten 'unsafe-inline' por los atributos style= de las plantillas.
+POLITICA_CSP = "; ".join([
+    "default-src 'self'",
+    f"script-src 'self' {CDN_D3}",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+])
+POLITICA_PERMISOS = ("camera=(), microphone=(), geolocation=(), payment=(), usb=(), "
+                     "magnetometer=(), gyroscope=(), accelerometer=()")
+
+
+def ip_cliente():
+    """IP real del cliente (ProxyFix ya tomo X-Forwarded-For de Azure)."""
+    return normalizar_ip(request.remote_addr)
+
+
+def limitador():
+    return current_app.extensions["se_limitador"]
+
+
+def limite(nombre):
+    return current_app.config.get(nombre) or LIMITES_POR_DEFECTO[nombre]
+
+
+def respuesta_429(segundos):
+    minutos = max(1, -(-int(segundos) // 60))
+    resp = current_app.make_response((render_template(
+        "error.html", codigo=429, titulo="Demasiados intentos",
+        mensaje=f"Se hicieron demasiados intentos desde su conexión. "
+                f"Espere {minutos} minuto(s) e inténtelo de nuevo."), 429))
+    resp.headers["Retry-After"] = str(int(segundos))
+    return resp
 
 
 def _es_api():
@@ -87,6 +143,28 @@ def instalar(app):
     """Registra en la aplicacion los ganchos de seguridad."""
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=MINUTOS_INACTIVIDAD)
     app.config["SESSION_REFRESH_EACH_REQUEST"] = True
+    # Azure App Service antepone exactamente un proxy (X-Forwarded-For y
+    # X-Forwarded-Proto). PROXY_SALTOS=0 lo desactiva (servidor expuesto directo).
+    saltos = int(app.config.get("PROXY_SALTOS", 1))
+    if saltos > 0:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=saltos, x_proto=saltos)
+    app.extensions["se_limitador"] = LimitadorVentana()
+
+    @app.before_request
+    def limitar_por_ip():
+        """H-01: limite de POST por IP en el ingreso y el cambio de clave.
+        Va antes de cualquier consulta a la base de datos."""
+        if request.method != "POST" or app.config.get("LIMITADOR_DESACTIVADO"):
+            return None
+        nombre = ENDPOINTS_LIMITADOS.get(request.endpoint)
+        if not nombre:
+            return None
+        maximo, ventana = limite(nombre)
+        clave = (nombre, ip_cliente())
+        if not limitador().consumir(clave, maximo, ventana):
+            app.logger.warning("Limite %s excedido desde %s", nombre, clave[1])
+            return respuesta_429(limitador().segundos_restantes(clave, ventana))
+        return None
 
     @app.before_request
     def controlar_inactividad():
@@ -152,8 +230,14 @@ def instalar(app):
         resp.headers["X-Content-Type-Options"] = "nosniff"
         resp.headers["X-Frame-Options"] = "DENY"
         resp.headers["Referrer-Policy"] = "same-origin"
+        resp.headers["Content-Security-Policy"] = POLITICA_CSP
+        resp.headers["Permissions-Policy"] = POLITICA_PERMISOS
+        resp.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        if request.is_secure:
+            resp.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         if session.get("id_usuario") and request.endpoint != "static":
             resp.headers["Cache-Control"] = "no-store"
+            resp.vary.add("Cookie")
         return resp
 
     @app.context_processor

@@ -4,11 +4,10 @@
 {% block contenido %}
 {% set h = datos.hipotesis %}
 {% call encabezado('Conocimiento por hipótesis', [('Conocimiento', url_for('conocimiento.resumen')), ('Hipótesis', url_for('conocimiento.lista', entidad='hipotesis')), ('Gránulos', None)]) %}
-  <form class="barra-filtros" onsubmit="return false;">
+  <form class="barra-filtros" data-sin-envio>
     <label for="sel-hipotesis">Hipótesis</label>
     <select id="sel-hipotesis" class="control" style="min-width:320px"
-            data-url="{{ url_for('conocimiento.granulos', id_hipotesis=0) }}"
-            onchange="window.location = this.dataset.url.replace('/0/', '/' + this.value + '/')">
+            data-url="{{ url_for('conocimiento.granulos', id_hipotesis=0) }}" data-navegar>
       {% for x in hipotesis %}
       <option value="{{ x.id_hipotesis }}" {{ 'selected' if x.id_hipotesis == id_hipotesis }}>H{{ x.id_hipotesis }} · {{ x.nombre|tildes }}</option>
       {% endfor %}

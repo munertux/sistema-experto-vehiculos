@@ -7,6 +7,7 @@ Ninguna consulta a la base de datos se ejecuta al importar el modulo:
 los servicios de la capa de logica se construyen de forma perezosa en la
 primera peticion que los necesita (ver app/web/servicios.py).
 """
+import logging
 import os
 import secrets
 from datetime import datetime
@@ -21,6 +22,36 @@ from app.web.conocimiento import bp as bp_conocimiento
 from app.web.consultante import bp as bp_consultante
 
 NOMBRE_SISTEMA = "Sistema experto de diagnóstico de fallas en vehículos"
+# Entornos en los que se admite una SECRET_KEY aleatoria por proceso.
+ENTORNOS_NO_PRODUCCION = ("pruebas", "desarrollo")
+LONGITUD_MINIMA_SECRET_KEY = 32
+
+
+def _entorno_no_produccion(config):
+    return (os.environ.get("FLASK_DEBUG") == "1"
+            or os.environ.get("SE_ENTORNO", "").strip().lower() in ENTORNOS_NO_PRODUCCION
+            or bool((config or {}).get("TESTING")))
+
+
+def _clave_secreta(config):
+    """H-03: en produccion la app NO arranca sin SECRET_KEY (falla cerrada).
+    Una clave aleatoria por proceso invalidaria sesiones y CSRF en cada
+    reinicio y entre workers de gunicorn. Solo se genera una aleatoria con
+    FLASK_DEBUG=1, SE_ENTORNO=pruebas|desarrollo o TESTING en la config."""
+    clave = (config or {}).get("SECRET_KEY") or os.environ.get("SECRET_KEY")
+    if clave:
+        if len(clave) < LONGITUD_MINIMA_SECRET_KEY and not _entorno_no_produccion(config):
+            logging.getLogger(__name__).warning(
+                "SECRET_KEY tiene menos de %d caracteres; use una clave aleatoria más larga.",
+                LONGITUD_MINIMA_SECRET_KEY)
+        return clave
+    if _entorno_no_produccion(config):
+        return secrets.token_hex(32)
+    raise RuntimeError(
+        "Falta la variable de entorno SECRET_KEY. Defínala en App Service "
+        "(Configuración > Variables de entorno) con un valor aleatorio de 32 bytes o más, "
+        "p. ej. python -c \"import secrets; print(secrets.token_hex(32))\". "
+        "Para desarrollo local use FLASK_DEBUG=1 o SE_ENTORNO=desarrollo.")
 
 
 def crear_app(config=None, servicios=None):
@@ -31,10 +62,12 @@ def crear_app(config=None, servicios=None):
     """
     app = Flask(__name__, template_folder="app/templates", static_folder="app/static")
     app.config.update(
-        SECRET_KEY=os.environ.get("SECRET_KEY") or secrets.token_hex(32),
+        SECRET_KEY=_clave_secreta(config),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=os.environ.get("COOKIE_SEGURA", "1") == "1",
+        # saltos de proxy de confianza para X-Forwarded-For/Proto (Azure: 1)
+        PROXY_SALTOS=int(os.environ.get("PROXY_SALTOS", "1")),
         MAX_CONTENT_LENGTH=5 * 1024 * 1024,
         NOMBRE_SISTEMA=NOMBRE_SISTEMA,
     )

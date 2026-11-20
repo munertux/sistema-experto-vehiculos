@@ -14,7 +14,7 @@ def test_kb_solo_para_ingeniero(cliente, servicios):
     assert cliente.get("/api/conocimiento/kb").status_code in (302, 401)
     ingresar(cliente, "consultante1")
     assert cliente.get("/api/conocimiento/kb").status_code == 403
-    cliente.get("/logout")
+    cliente.post("/logout", data={"csrf_token": token(cliente)})
     ingresar(cliente, "ingeniero1")
     r = cliente.get("/api/conocimiento/kb")
     assert r.status_code == 200 and r.get_json()["reglas"][0]["codigo"] == "R72"

@@ -66,7 +66,7 @@
           {% if propio %}{{ dict(roles)[u.rol] }}{% else %}
           <form class="en-linea" method="post" action="{{ url_for('administracion.accion_usuario', id_usuario=u.id_usuario, accion='rol') }}">
             {{ csrf() }}
-            <select name="rol" class="control" style="width:auto; padding:4px 8px; font-size:.82rem" onchange="this.form.submit()" aria-label="Rol de {{ u.nombre_usuario }}">
+            <select name="rol" class="control" style="width:auto; padding:4px 8px; font-size:.82rem" data-autoenvio aria-label="Rol de {{ u.nombre_usuario }}">
               {% for clave, texto in roles %}<option value="{{ clave }}" {{ 'selected' if u.rol == clave }}>{{ texto }}</option>{% endfor %}
             </select>
             <noscript><button class="boton chico" type="submit">Cambiar</button></noscript>
@@ -96,11 +96,11 @@
               {{ csrf() }}<button type="submit" class="boton chico exito">Activar</button></form>
             {% else %}
             <form class="en-linea" method="post" action="{{ url_for('administracion.accion_usuario', id_usuario=u.id_usuario, accion='inactivar') }}"
-                  onsubmit="return confirm('¿Inactivar al usuario {{ u.nombre_usuario }}? No podrá ingresar al sistema.');">
+                  data-confirmar="¿Inactivar al usuario {{ u.nombre_usuario }}? No podrá ingresar al sistema.">
               {{ csrf() }}<button type="submit" class="boton chico">Inactivar</button></form>
             {% endif %}
           {% endif %}
-            <button type="button" class="boton chico" onclick="restablecer({{ u.id_usuario }}, '{{ u.nombre_usuario }}')">Contraseña</button>
+            <button type="button" class="boton chico" data-restablecer="{{ url_for('administracion.accion_usuario', id_usuario=u.id_usuario, accion='clave') }}" data-usuario="{{ u.nombre_usuario }}">Contraseña</button>
           </div>
         </td>
       </tr>
@@ -119,19 +119,12 @@
     <div class="campo"><label for="clave-conf" class="requerido">Confirmar contraseña</label>
       <input type="password" id="clave-conf" name="clave_confirmacion" required minlength="8" autocomplete="new-password"></div>
     <div class="form-pie">
-      <button type="button" class="boton" onclick="document.getElementById('dialogo-clave').close()">Cancelar</button>
+      <button type="button" class="boton" data-cerrar-dialogo="dialogo-clave">Cancelar</button>
       <button type="submit" class="boton primario">Restablecer</button>
     </div>
   </form>
 </dialog>
 {% endblock %}
 {% block scripts %}
-<script>
-  function restablecer(id, usuario) {
-    const dlg = document.getElementById("dialogo-clave");
-    document.getElementById("form-clave").action = "{{ url_for('administracion.accion_usuario', id_usuario=0, accion='clave') }}".replace("/0/", "/" + id + "/");
-    document.getElementById("clave-usuario").textContent = usuario;
-    dlg.showModal();
-  }
-</script>
+<script src="{{ url_for('static', filename='admin_usuarios.js') }}"></script>
 {% endblock %}

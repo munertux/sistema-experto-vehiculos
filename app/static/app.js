@@ -27,4 +27,37 @@
   }
 
   window.SE = { api, escapar, csrf: token };
+
+  // Comportamientos declarativos (reemplazan los onclick/onsubmit inline,
+  // que la Content-Security-Policy bloquea al no usar 'unsafe-inline').
+  //   form[data-confirmar="texto"]  pide confirmacion antes de enviar
+  //   form[data-sin-envio]          nunca se envia (filtros manejados por JS)
+  //   select[data-autoenvio]        envia su formulario al cambiar
+  //   select[data-navegar][data-url] va a data-url con /0/ -> /<valor>/
+  //   [data-imprimir]               abre el dialogo de impresion
+  //   [data-cerrar-dialogo="id"]    cierra el <dialog> con ese id
+  document.addEventListener("submit", (ev) => {
+    const form = ev.target;
+    if (!(form instanceof HTMLFormElement)) return;
+    if (form.hasAttribute("data-sin-envio")) { ev.preventDefault(); return; }
+    const texto = form.dataset.confirmar;
+    if (texto && !window.confirm(texto)) ev.preventDefault();
+  });
+
+  document.addEventListener("change", (ev) => {
+    const el = ev.target;
+    if (!(el instanceof HTMLSelectElement)) return;
+    if (el.hasAttribute("data-autoenvio") && el.form) { el.form.submit(); return; }
+    if (el.hasAttribute("data-navegar") && el.dataset.url && /^\d+$/.test(el.value)) {
+      window.location.assign(el.dataset.url.replace("/0/", "/" + el.value + "/"));
+    }
+  });
+
+  document.addEventListener("click", (ev) => {
+    const el = ev.target instanceof Element ? ev.target.closest("[data-imprimir], [data-cerrar-dialogo]") : null;
+    if (!el) return;
+    if (el.hasAttribute("data-imprimir")) { window.print(); return; }
+    const dlg = document.getElementById(el.dataset.cerrarDialogo);
+    if (dlg && typeof dlg.close === "function") dlg.close();
+  });
 })();
