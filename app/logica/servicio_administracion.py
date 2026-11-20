@@ -7,7 +7,8 @@ from datetime import datetime
 from app.datos.dao.bitacora_dao import BitacoraDAO
 from app.datos.dao.consultante_dao import ConsultanteDAO
 from app.datos.dao.empleado_dao import EmpleadoDAO
-from app.datos.dao.respaldo_dao import (RespaldoDAO, ORDEN_RESPALDO, TABLAS_CONOCIMIENTO)
+from app.datos.dao.respaldo_dao import (RespaldoDAO, ORDEN_RESPALDO, TABLAS_CONOCIMIENTO,
+                                       COLUMNAS_CONOCIMIENTO)
 from app.datos.dao.usuario_dao import UsuarioDAO
 from app.logica.entidades import CLAVES_ROL, IDS_ROL
 from app.logica.errores import ErrorNegocio
@@ -17,12 +18,71 @@ PATRON_USUARIO = re.compile(r"^[a-zA-Z0-9._-]{3,40}$")
 PATRON_CORREO = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 CARGO_POR_ROL = {"ingeniero": "Ingeniero del conocimiento", "administrador": "Administrador del sistema"}
 
-# Literales de texto ('...' o E'...') para validar el script de restauracion.
-_LITERALES = re.compile(r"E'(?:[^'\\]|\\.)*'|'(?:[^']|'')*'")
-_INSERT_PERMITIDO = re.compile(
-    # dentro de VALUES solo literales, numeros, NULL, TRUE y FALSE (sin funciones ni subconsultas)
-    r"^INSERT INTO (%s) \([a-z_, ]+\) VALUES \([-0-9.,' A-Z]*\) ON CONFLICT[ a-z_(),=.A-Z]*;$"
-    % "|".join(TABLAS_CONOCIMIENTO))
+# Forma exacta de las sentencias que genera RespaldoDAO.sentencias_insert para
+# las tablas de conocimiento. Cualquier otra forma se rechaza.
+_INSERT_CONOCIMIENTO = re.compile(
+    r"^INSERT INTO (?P<tabla>[a-z_]+) \((?P<columnas>[a-z_]+(?:, [a-z_]+)*)\) VALUES \((?P<valores>.*)\) "
+    r"ON CONFLICT \((?P<pk>[a-z_]+(?:, [a-z_]+)*)\) (?P<accion>DO NOTHING|DO UPDATE SET (?P<sets>.+));$")
+_SET = re.compile(r"^([a-z_]+) = EXCLUDED\.([a-z_]+)$")
+# Valores admitidos: NULL, TRUE, FALSE, numeros y literales '...' o E'...' (los que produce literal_sql).
+_VALOR = re.compile(r"\s*(?:(?P<nulo>NULL)|(?P<booleano>TRUE|FALSE)|(?P<numero>-?\d+(?:\.\d+)?)"
+                    r"|E'(?P<escapado>(?:[^'\\]|\\.)*)'|'(?P<texto>(?:[^']|'')*)')\s*(?:,|$)")
+_ESCAPES = {"\\": "\\", "'": "'", "n": "\n", "r": "\r", "t": "\t"}
+
+
+def _valores_sql(texto: str) -> list:
+    """Convierte la lista VALUES en valores de Python o lanza ErrorNegocio."""
+    valores, pos = [], 0
+    while pos < len(texto):
+        m = _VALOR.match(texto, pos)
+        if not m or m.end() == pos:
+            raise ErrorNegocio("Valor no permitido en el respaldo.")
+        if m.group("nulo"):
+            valores.append(None)
+        elif m.group("booleano"):
+            valores.append(m.group("booleano") == "TRUE")
+        elif m.group("numero") is not None:
+            n = m.group("numero")
+            valores.append(float(n) if "." in n else int(n))
+        elif m.group("escapado") is not None:
+            valores.append(re.sub(r"\\(.)", lambda e: _ESCAPES.get(e.group(1), e.group(1)), m.group("escapado")))
+        else:
+            valores.append(m.group("texto").replace("''", "'"))
+        pos = m.end()
+        if pos == len(texto) and texto.rstrip().endswith(","):
+            raise ErrorNegocio("Valor no permitido en el respaldo.")
+    return valores
+
+
+def sentencia_restauracion(linea: str):
+    """Valida un INSERT de conocimiento contra la forma exacta del respaldo
+    (tabla y columnas de la lista permitida, ON CONFLICT (<pk>) DO UPDATE
+    SET col = EXCLUDED.col para todas las columnas no llave) y devuelve
+    (sql parametrizado, valores). Lanza ErrorNegocio si no coincide."""
+    m = _INSERT_CONOCIMIENTO.match(linea)
+    if not m or m.group("tabla") not in COLUMNAS_CONOCIMIENTO:
+        raise ErrorNegocio("El archivo contiene sentencias no permitidas: " + linea[:80])
+    permitidas, pk_esperada = COLUMNAS_CONOCIMIENTO[m.group("tabla")]
+    columnas = m.group("columnas").split(", ")
+    pk = tuple(m.group("pk").split(", "))
+    resto = [c for c in columnas if c not in pk]
+    if (len(set(columnas)) != len(columnas) or not set(columnas) <= set(permitidas) or pk != pk_esperada
+            or not set(pk) <= set(columnas)):
+        raise ErrorNegocio("El archivo contiene columnas o llaves no permitidas: " + linea[:80])
+    if m.group("sets") is None:
+        if resto:
+            raise ErrorNegocio("El archivo contiene sentencias no permitidas: " + linea[:80])
+    else:
+        pares = [_SET.match(s) for s in m.group("sets").split(", ")]
+        if any(p is None or p.group(1) != p.group(2) for p in pares) or [p.group(1) for p in pares] != resto:
+            raise ErrorNegocio("El archivo contiene una clausula ON CONFLICT no permitida: " + linea[:80])
+    valores = _valores_sql(m.group("valores"))
+    if len(valores) != len(columnas):
+        raise ErrorNegocio("El numero de valores no coincide con las columnas: " + linea[:80])
+    accion = ("DO UPDATE SET " + ", ".join(f"{c} = EXCLUDED.{c}" for c in resto)) if resto else "DO NOTHING"
+    sql = (f"INSERT INTO {m.group('tabla')} ({', '.join(columnas)}) VALUES ({', '.join(['%s'] * len(columnas))}) "
+           f"ON CONFLICT ({', '.join(pk)}) {accion}")
+    return sql, tuple(valores)
 
 
 class ServicioAdministracion:
@@ -158,7 +218,10 @@ class ServicioAdministracion:
     def respaldo_conocimiento_sql(self) -> str:
         lineas = ["-- Respaldo de la base de conocimiento", f"-- Generado: {datetime.now():%Y-%m-%d %H:%M:%S}",
                   "BEGIN;"]
+        existentes = self._respaldo.tablas_existentes()
         for tabla in TABLAS_CONOCIMIENTO:
+            if tabla not in existentes:
+                continue
             lineas.append(f"-- {tabla}")
             lineas.extend(self._respaldo.sentencias_insert(tabla, actualizar_si_existe=True))
         lineas.append("COMMIT;")
@@ -178,13 +241,10 @@ class ServicioAdministracion:
                                                       and linea.split()[2] in ORDEN_RESPALDO
                                                       and linea.split()[2] not in TABLAS_CONOCIMIENTO):
                 continue   # datos transaccionales: no se restauran desde la web
-            sin_literales = _LITERALES.sub("''", linea)
-            if ";" in sin_literales[:-1] or not _INSERT_PERMITIDO.match(sin_literales):
-                raise ErrorNegocio("El archivo contiene sentencias no permitidas: " + linea[:80])
-            sentencias.append(linea)
+            sentencias.append(sentencia_restauracion(linea))
         if not sentencias:
             raise ErrorNegocio("El archivo no contiene datos de conocimiento para restaurar.")
-        self._respaldo.ejecutar_lote(sentencias)
+        self._respaldo.ejecutar_parametrizadas(sentencias)
         self._bitacora.registrar("respaldo", None, "modificar", id_empleado,
                                  detalle=f"Restauracion de conocimiento: {len(sentencias)} sentencias")
         return len(sentencias)

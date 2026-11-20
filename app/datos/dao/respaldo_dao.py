@@ -8,11 +8,28 @@ from decimal import Decimal
 from app.datos.dao.base_dao import BaseDAO
 
 # Orden compatible con las llaves foraneas.
-TABLAS_CONOCIMIENTO = ("areas", "hipotesis", "preguntas", "reglas", "parametros_inferencia")
+TABLAS_CONOCIMIENTO = ("areas", "hipotesis", "preguntas", "hechos", "reglas", "regla_condicion",
+                       "testigo_hipotesis", "obd_hipotesis", "parametros_inferencia")
+# Columnas y llave primaria permitidas por tabla al restaurar conocimiento
+# (la forma exacta que genera sentencias_insert; las de sql/07 son opcionales).
+COLUMNAS_CONOCIMIENTO = {
+    "areas": (("id_area", "nombre", "descripcion"), ("id_area",)),
+    "hipotesis": (("id_hipotesis", "nombre", "descripcion"), ("id_hipotesis",)),
+    "preguntas": (("id_pregunta", "id_area", "enunciado", "sintoma_evaluado", "tipo_respuesta", "es_entrada",
+                   "activa"), ("id_pregunta",)),
+    "hechos": (("codigo", "descripcion"), ("codigo",)),
+    "reglas": (("id_regla", "codigo", "id_pregunta", "id_hipotesis", "id_area", "nivel_atencion", "gravedad",
+                "recomendacion", "peso", "version", "activa", "concluye_hecho"), ("id_regla",)),
+    "regla_condicion": (("id_regla", "orden", "tipo", "referencia", "valor_esperado"), ("id_regla", "orden")),
+    "testigo_hipotesis": (("testigo", "id_hipotesis", "peso"), ("testigo", "id_hipotesis")),
+    "obd_hipotesis": (("prefijo", "id_hipotesis", "peso", "descripcion"), ("prefijo", "id_hipotesis")),
+    "parametros_inferencia": (("clave", "valor"), ("clave",)),
+}
 TABLAS_TRANSACCIONALES = ("rol", "usuario", "consultante", "empleado", "vehiculo",
                           "atencion", "atencion_respuesta", "atencion_diagnostico", "bitacora_conocimiento")
 ORDEN_RESPALDO = ("rol", "usuario", "consultante", "empleado", "vehiculo",
-                  "areas", "hipotesis", "preguntas", "reglas", "parametros_inferencia",
+                  "areas", "hipotesis", "preguntas", "hechos", "reglas", "regla_condicion",
+                  "testigo_hipotesis", "obd_hipotesis", "parametros_inferencia",
                   "atencion", "atencion_respuesta", "atencion_diagnostico", "bitacora_conocimiento")
 
 
@@ -83,6 +100,13 @@ class RespaldoDAO(BaseDAO):
     def sentencias_secuencias(self, tabla: str, tx=None) -> list:
         return [f"SELECT setval(pg_get_serial_sequence('{tabla}', '{c}'), COALESCE((SELECT MAX({c}) FROM {tabla}), 0) + 1, false);"
                 for c in self.columnas_serial(tabla, tx)]
+
+    def ejecutar_parametrizadas(self, sentencias: list) -> int:
+        """[(sql, parametros)] en una sola transaccion (consultas parametrizadas)."""
+        with self._db.transaccion() as cur:
+            for sql, parametros in sentencias:
+                cur.execute(sql, parametros)
+        return len(sentencias)
 
     def ejecutar_lote(self, sentencias: list) -> int:
         """Ejecuta todas las sentencias en una sola transaccion."""
