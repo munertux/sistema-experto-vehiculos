@@ -25,6 +25,15 @@ SATISFECHA, PENDIENTE, BLOQUEADA = "satisfecha", "pendiente", "bloqueada"
 UMBRAL_MINIMO_CERTEZA = 0.20
 
 
+
+def _num(x) -> str:
+    """Numero con coma decimal para los textos de explicacion."""
+    return f"{float(x):g}".replace(".", ",")
+
+
+def _dec(x) -> str:
+    return f"{float(x):.2f}".replace(".", ",")
+
 class MotorInferencia:
     def __init__(self, repo_conocimiento):
         self._repo = repo_conocimiento
@@ -400,12 +409,12 @@ class MotorInferencia:
             area = self._repo.area(pregunta.id_area)
             n = len(self._repo.ids_hipotesis_activas(pregunta.id_area))
             texto = (f"Le pregunto esto para abrir el area {area.nombre if area else pregunta.id_area}: "
-                     f"la respuesta reparte evidencia (peso {self._p['peso_entrada']:g}) entre sus {n} "
+                     f"la respuesta reparte evidencia (peso {_num(self._p['peso_entrada'])}) entre sus {n} "
                      "hipotesis de falla.")
             lider = self._lider(memoria)
             if lider and lider[2] > 0:
                 texto += (f" Con los testigos y codigos OBD registrados, la hipotesis líder es "
-                          f"'{lider[1]}' (certeza {lider[2]:.2f}).")
+                          f"'{lider[1]}' (certeza {lider[2] * 100:.0f} %).")
             return texto
         if tipo == "contraste":
             dominante = self._repo.area(motivo.get("id_area_dominante")) if motivo.get("id_area_dominante") else None
@@ -425,13 +434,13 @@ class MotorInferencia:
         prob = memoria.puntajes.get(id_h, 0.0) / total * 100
         papel = "la hipotesis líder" if posicion == 1 else f"la hipotesis en evaluacion (puesto {posicion})"
         inicio = (f"Le pregunto esto porque {papel} es '{nombre}' "
-                  f"(certeza {memoria.certeza(id_h):.2f}, probabilidad relativa {prob:.0f} %)")
+                  f"(certeza {memoria.certeza(id_h) * 100:.0f} %, probabilidad relativa {prob:.0f} %)")
         if tipo == "directa":
             regla = self._repo.regla_de(pregunta.id_pregunta, id_h)
             codigo = regla["codigo"] if regla else "?"
             peso = float(regla["peso"]) if regla else 1.0
             return (f"{inicio} y la regla {codigo} la confirmaria si responde que si: "
-                    f"SI P{pregunta.id_pregunta} '{pregunta.enunciado}' ENTONCES '{nombre}' (peso {peso:g}).")
+                    f"SI P{pregunta.id_pregunta} '{pregunta.enunciado}' ENTONCES '{nombre}' (peso {_num(peso)}).")
         reglas = {r["id_regla"]: r for r in self._repo.reglas_compuestas()}
         regla = reglas.get(motivo.get("id_regla"))
         if regla is None:
@@ -439,7 +448,7 @@ class MotorInferencia:
         productoras = self._productoras(reglas.values())
         _, _, premisas = self._evaluar(regla, memoria, productoras)
         texto = (f"{inicio} y la regla {regla['codigo']} la confirmaria si se cumple: "
-                 f"SI {self._premisas_texto(premisas)} (peso {regla['peso']:g}).")
+                 f"SI {self._premisas_texto(premisas)} (peso {_num(regla['peso'])}).")
         for id_r in motivo.get("cadena") or []:
             inter = reglas.get(id_r)
             if inter:
@@ -523,7 +532,7 @@ class MotorInferencia:
                 "certeza": e.get("fuerza_hecho"),
                 "hechos": [p["referencia"] for p in e.get("premisas", []) if p["tipo"] == "hecho"],
                 "texto": f"{e.get('codigo')}: SI {' Y '.join(premisas)} ENTONCES hecho {e['hecho']} "
-                         f"(fuerza {e.get('fuerza_hecho', 0):.2f})",
+                         f"(fuerza {_dec(e.get('fuerza_hecho', 0))})",
             })
 
         for e in eventos:
@@ -537,8 +546,8 @@ class MotorInferencia:
                     "codigo": e["codigo"], "tipo": e["tipo"], "conclusion": nombre, "premisas": premisas,
                     "evidencia": e["evidencia"], "peso": e["peso"], "aporte": e["incremento"],
                     "certeza": e["certeza"], "hechos": [],
-                    "texto": f"{e['codigo']}: {premisas[0]} -> '{nombre}' (peso {e['peso']:g}, "
-                             f"aporte {signo}{e['incremento']:.2f})",
+                    "texto": f"{e['codigo']}: {premisas[0]} -> '{nombre}' (peso {_num(e['peso'])}, "
+                             f"aporte {signo}{_dec(e['incremento'])})",
                 })
             elif e["tipo"] == "directa":
                 codigo = codigos.get(e["id_regla"], str(e["id_regla"]))
@@ -549,8 +558,8 @@ class MotorInferencia:
                     "codigo": codigo, "tipo": "directa", "conclusion": nombre, "premisas": premisas,
                     "evidencia": e["evidencia"], "peso": e["peso"], "aporte": e["incremento"],
                     "certeza": e["certeza"], "hechos": [],
-                    "texto": f"{codigo}: SI {premisas[0]} ENTONCES '{nombre}' (evidencia {e['evidencia']:.2f} "
-                             f"x peso {e['peso']:g} = {signo}{e['incremento']:.2f})",
+                    "texto": f"{codigo}: SI {premisas[0]} ENTONCES '{nombre}' (evidencia {_dec(e['evidencia'])} "
+                             f"x peso {_num(e['peso'])} = {signo}{_dec(e['incremento'])})",
                 })
             elif e["tipo"] == "compuesta":
                 for id_r in e.get("soporte", []):
@@ -564,6 +573,6 @@ class MotorInferencia:
                     "nivel_atencion": e.get("nivel_atencion"), "gravedad": e.get("gravedad"),
                     "recomendacion": e.get("recomendacion"),
                     "texto": f"{e['codigo']}: SI {' Y '.join(premisas)} ENTONCES '{nombre}' (evidencia mínima "
-                             f"{e['evidencia']:.2f} x peso {e['peso']:g} = +{e['incremento']:.2f})",
+                             f"{_dec(e['evidencia'])} x peso {_num(e['peso'])} = +{_dec(e['incremento'])})",
                 })
         return pasos
