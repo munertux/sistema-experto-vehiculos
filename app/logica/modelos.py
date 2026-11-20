@@ -90,3 +90,5 @@ class HipotesisPonderada:
     recomendacion: str
     sintoma_confirmado: bool
     reglas_activadas: list = field(default_factory=list)
+    certeza: float = 0.0            # certeza acotada [0,1] (MYCIN: MB - MD)
+    reglas_compuestas: list = field(default_factory=list)  # ids de reglas compuestas disparadas
