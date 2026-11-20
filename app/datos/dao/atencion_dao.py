@@ -71,6 +71,10 @@ class AtencionDAO(BaseDAO):
             "ON CONFLICT (id_atencion, id_pregunta) DO UPDATE SET respuesta = EXCLUDED.respuesta, "
             "certeza = EXCLUDED.certeza", (id_atencion, id_pregunta, respuesta, certeza, orden), tx)
 
+    def contar_respuestas(self, id_atencion: int, tx=None) -> int:
+        return int(self._escalar("SELECT COUNT(*) FROM atencion_respuesta WHERE id_atencion = %s",
+                                 (id_atencion,), tx) or 0)
+
     def respuestas(self, id_atencion: int, tx=None) -> list:
         filas = self._filas(
             "SELECT r.orden, r.id_pregunta, p.enunciado, p.es_entrada, p.id_area, r.respuesta, r.certeza "

@@ -328,3 +328,14 @@ def test_crud_y_validacion_con_reglas_compuestas(conexion_experto, ids):
     assert {"areas", "preguntas", "hipotesis", "reglas", "hechos", "testigos", "obd"} <= set(kb)
     tipos = {r["codigo"]: r["tipo"] for r in kb["reglas"]}
     assert tipos["R01"] == "simple" and tipos["R72"] == "compuesta" and tipos["R69"] == "intermedia"
+
+
+def test_memoria_vieja_de_otro_worker_se_reconstruye(conexion_experto, diag):
+    """Con varios workers, un proceso puede tener en _SESIONES una memoria
+    atrasada; debe reconstruirse en vez de repetir preguntas."""
+    id_at, p = diag.iniciar(9, testigos=["Bateria o sistema de carga"])
+    vieja = dict(modulo_diag._SESIONES[id_at])                # copia "del otro worker"
+    r = diag.responder(id_at, p["id_pregunta"], "si")
+    esperado = r["pregunta"]["id_pregunta"]
+    modulo_diag._SESIONES[id_at] = vieja                      # este proceso quedo atrasado
+    assert diag.estado(id_at)["pregunta"]["id_pregunta"] == esperado

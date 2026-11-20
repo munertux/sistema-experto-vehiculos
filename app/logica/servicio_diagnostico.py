@@ -369,6 +369,10 @@ class ServicioDiagnostico:
     # ------------------------------------------------------------ internos
     def _sesion(self, id_atencion: int) -> dict:
         sesion = _SESIONES.get(id_atencion)
+        if sesion is not None and hasattr(self._repo_a, "contar_respuestas") \
+                and self._repo_a.contar_respuestas(id_atencion) != sesion["orden"]:
+            # otro worker de gunicorn avanzo la atencion: la memoria local quedo vieja
+            sesion = None
         if sesion is None:
             sesion = self._reconstruir(id_atencion)
             if sesion is None:
