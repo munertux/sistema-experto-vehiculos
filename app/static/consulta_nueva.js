@@ -7,11 +7,7 @@
   const campo = document.getElementById("codigos_obd");
   const estado = document.getElementById("obd-estado");
 
-  function escapar(t) {
-    const d = document.createElement("div");
-    d.textContent = t;
-    return d.innerHTML;
-  }
+  const escapar = window.SE.escapar;
 
   function motivo(c) {
     if (!/^[PCBU]/.test(c)) return "debe empezar por P, C, B o U";

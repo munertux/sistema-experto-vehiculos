@@ -20,10 +20,10 @@
     return cuerpo;
   }
 
+  const ENTIDADES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
   function escapar(texto) {
-    const div = document.createElement("div");
-    div.textContent = texto == null ? "" : String(texto);
-    return div.innerHTML;
+    return (texto == null ? "" : String(texto)).replace(/[&<>"']/g, (c) => ENTIDADES[c]);
   }
 
   window.SE = { api, escapar, csrf: token };
