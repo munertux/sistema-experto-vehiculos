@@ -176,7 +176,7 @@ def test_servicio_traduce_etiquetas_de_testigos(diag):
     assert diag.codigos_testigos(["Bateria o sistema de carga", "abs", "Batería o sistema de carga", "x"]) == \
         ["BATERIA", "ABS"]
     id_at, pregunta = diag.iniciar(9, testigos=["Bateria o sistema de carga"], codigos_obd="P0562")
-    assert "por_que" in pregunta and "lider" in pregunta["por_que"]
+    assert "por_que" in pregunta and "líder" in pregunta["por_que"]
     en_curso = diag.estado(id_at)["hipotesis_en_curso"]
     assert en_curso[0]["id_hipotesis"] == 5 and 0 < en_curso[0]["certeza"] <= 1
     assert set(en_curso[0]) >= {"id_hipotesis", "nombre", "puntaje", "probabilidad", "certeza", "nivel_atencion"}
