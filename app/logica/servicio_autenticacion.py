@@ -71,6 +71,22 @@ class ServicioAutenticacion:
         self._usuarios.registrar_acceso(usuario.id_usuario)
         return self.sesion_de(usuario.id_usuario)
 
+    def sesion_vigente(self, id_usuario: int, rol: str) -> bool:
+        """True si la sesion abierta para (id_usuario, rol) sigue siendo
+        valida: el usuario existe, esta activo (o su bloqueo temporal ya
+        vencio) y conserva el mismo rol. La presentacion lo consulta en
+        cada peticion para cortar sesiones de usuarios bloqueados,
+        desactivados o con cambio de rol."""
+        try:
+            usuario = self._usuarios.obtener(int(id_usuario))
+        except (TypeError, ValueError):
+            return False
+        if usuario is None or usuario.rol != rol:
+            return False
+        if usuario.estado == "activo":
+            return True
+        return usuario.estado == "bloqueado" and usuario.bloqueado_hasta is not None and not usuario.bloqueo_vigente
+
     def sesion_de(self, id_usuario: int) -> dict:
         """Diccionario de sesion acordado con la presentacion."""
         usuario = self._usuarios.obtener(id_usuario)

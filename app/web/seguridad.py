@@ -105,6 +105,27 @@ def instalar(app):
         return None
 
     @app.before_request
+    def revalidar_usuario():
+        """Corta la sesion si el usuario fue bloqueado, desactivado,
+        eliminado o cambio de rol desde que inicio sesion."""
+        if request.endpoint == "static" or not session.get("id_usuario"):
+            return None
+        from app.web.servicios import servicio
+        svc = servicio("autenticacion")
+        vigente = getattr(svc, "sesion_vigente", None)
+        if vigente is None:   # dobles de prueba antiguos sin el metodo
+            return None
+        if vigente(session.get("id_usuario"), session.get("rol")):
+            return None
+        session.clear()
+        if request.endpoint in ("autenticacion.login", "autenticacion.logout"):
+            return None
+        if _es_api():
+            return jsonify({"error": "La sesión ya no es válida. Ingrese de nuevo."}), 401
+        flash("Su sesión ya no es válida (usuario bloqueado, inactivo o con otro rol). Ingrese de nuevo.", "info")
+        return redirect(url_for("autenticacion.login"))
+
+    @app.before_request
     def verificar_csrf():
         if request.method not in METODOS_INSEGUROS or app.config.get("CSRF_DESACTIVADO"):
             return None
