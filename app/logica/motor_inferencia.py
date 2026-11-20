@@ -508,6 +508,14 @@ class MotorInferencia:
             base += f" [{estado}]"
         return base
 
+    def _premisa_con_respuesta(self, memoria, p) -> str:
+        texto = self._premisa_texto(dict(p, estado=None))
+        if p["tipo"] == "pregunta":
+            resp = memoria.respuestas.get(int(p["referencia"]))
+            if resp:
+                texto += f" = {ETIQUETAS_RESPUESTA.get(resp, resp)}"
+        return texto
+
     def _premisas_texto(self, premisas) -> str:
         return " Y ".join(self._premisa_texto(p) for p in premisas)
 
@@ -532,7 +540,7 @@ class MotorInferencia:
             e = intermedias[id_r]
             for previo in e.get("soporte", []):
                 paso_intermedio(previo)
-            premisas = [self._premisa_texto(dict(p, estado=None)) for p in e.get("premisas", [])]
+            premisas = [self._premisa_con_respuesta(memoria, p) for p in e.get("premisas", [])]
             pasos.append({
                 "codigo": e.get("codigo"), "tipo": "intermedia", "conclusion": f"Hecho {e['hecho']}", "concluye": e["hecho"],
                 "premisas": premisas, "evidencia": e["evidencia"], "peso": None, "aporte": None,
@@ -571,7 +579,7 @@ class MotorInferencia:
             elif e["tipo"] == "compuesta":
                 for id_r in e.get("soporte", []):
                     paso_intermedio(id_r)
-                premisas = [self._premisa_texto(dict(p, estado=None)) for p in e.get("premisas", [])]
+                premisas = [self._premisa_con_respuesta(memoria, p) for p in e.get("premisas", [])]
                 pasos.append({
                     "codigo": e["codigo"], "tipo": "compuesta", "conclusion": nombre, "premisas": premisas,
                     "evidencia": e["evidencia"], "peso": e["peso"], "aporte": e["incremento"],
