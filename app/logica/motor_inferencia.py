@@ -330,10 +330,17 @@ class MotorInferencia:
         id_lider, puntaje_lider = ranking[0]
         total = sum(p for _, p in ranking) or 1e-9
         probabilidad_lider = puntaje_lider / total
-        if probabilidad_lider < self._p["umbral_confianza"]:
-            return False
-        # el sintoma especifico de la hipotesis lider debe haber sido afirmado
-        return self.sintoma_confirmado(memoria, id_lider)
+        if probabilidad_lider >= self._p["umbral_confianza"] and self.sintoma_confirmado(memoria, id_lider):
+            return True
+        # Extension: la probabilidad relativa se diluye cuando hay muchas
+        # hipotesis activas; si una tiene certeza alta y clara ventaja sobre
+        # la segunda, seguir preguntando no cambia la conclusion.
+        certezas = sorted(((memoria.certeza(h), h) for h, _ in ranking), reverse=True)
+        c_lider, id_c = certezas[0]
+        c_segunda = certezas[1][0] if len(certezas) > 1 else 0.0
+        return (c_lider >= self._p.get("umbral_certeza_parada", 0.85)
+                and c_lider - c_segunda >= self._p.get("margen_certeza_parada", 0.30)
+                and self.sintoma_confirmado(memoria, id_c))
 
     # -------------------------------------------------------- ponderar
     def diagnostico(self, memoria, n: int = None):
@@ -527,7 +534,7 @@ class MotorInferencia:
                 paso_intermedio(previo)
             premisas = [self._premisa_texto(dict(p, estado=None)) for p in e.get("premisas", [])]
             pasos.append({
-                "codigo": e.get("codigo"), "tipo": "intermedia", "conclusion": f"Hecho {e['hecho']}",
+                "codigo": e.get("codigo"), "tipo": "intermedia", "conclusion": f"Hecho {e['hecho']}", "concluye": e["hecho"],
                 "premisas": premisas, "evidencia": e["evidencia"], "peso": None, "aporte": None,
                 "certeza": e.get("fuerza_hecho"),
                 "hechos": [p["referencia"] for p in e.get("premisas", []) if p["tipo"] == "hecho"],

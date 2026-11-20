@@ -220,10 +220,11 @@ def pasos_como(como):
                           "hechos": lista(paso.get("hechos")),
                           "tipo": TIPOS_PASO.get(str(paso.get("tipo") or "").lower(), ""),
                           "conclusion": paso.get("conclusion") or "",
+                          "concluye": paso.get("concluye") or "",
                           "texto": paso.get("texto") or ""})
         elif str(paso).strip():
             pasos.append({"regla": "", "premisas": [], "evidencia": None, "hechos": [], "tipo": "",
-                          "conclusion": "", "texto": str(paso)})
+                          "conclusion": "", "concluye": "", "texto": str(paso)})
     return pasos
 
 

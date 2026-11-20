@@ -30,7 +30,7 @@ from app.datos.entorno import cargar_env  # noqa: E402
 
 ARCHIVOS = ["sql/01_esquema.sql", "sql/02_conocimiento.sql", "sql/05_transaccional.sql", "sql/06_semillas.sql"]
 ARCHIVOS_EXPERTO = ARCHIVOS + ["sql/07_motor_experto.sql", "sql/08_conocimiento_experto.sql",
-                               "sql/09_calidad_experto.sql"]
+                               "sql/09_calidad_experto.sql", "sql/10_parada_por_certeza.sql"]
 _CACHE = {}
 
 

@@ -271,7 +271,7 @@
           const arr = (v) => (Array.isArray(v) ? v : v ? String(v).split(/[,;]\s*/) : []).filter((x) => String(x).trim());
           return { regla: p.regla || p.codigo || "", premisas: arr(p.premisas), evidencia: p.evidencia, hechos: arr(p.hechos),
             hechosTexto: arr(p.hechos_texto),
-            tipo: TIPOS_PASO[String(p.tipo || "").toLowerCase()] || "", conclusion: p.conclusion || "", texto: p.texto || "" };
+            tipo: TIPOS_PASO[String(p.tipo || "").toLowerCase()] || "", conclusion: p.conclusion || "", concluye: p.concluye || "", concluyeTexto: p.concluye_texto || "", texto: p.texto || "" };
         }
         return String(p || "").trim() ? { regla: "", premisas: [], evidencia: null, hechos: [], tipo: "", conclusion: "", texto: String(p) } : null;
       })
@@ -286,8 +286,8 @@
         `<span class="lt-evidencia" title="Factor de certeza aportado por la regla">evidencia ${fmtDec(p.evidencia)}</span>` : "";
       const premisas = p.premisas.length ?
         `<div class="lt-bloque"><span class="lt-etq">Si</span><ul class="lt-premisas">${p.premisas.map((x) => `<li>${escapar(x)}</li>`).join("")}</ul></div>` : "";
-      const hechos = p.hechos.length ?
-        `<div class="lt-bloque"><span class="lt-etq">Entonces</span><span class="lt-hechos">${p.hechos.map((x, j) => `<span class="lt-hecho" title="${escapar(x)}">${escapar(p.hechosTexto[j] || hechoLegible(x))}</span>`).join("")}</span></div>`
+      const hechos = p.concluye ?
+        `<div class="lt-bloque"><span class="lt-etq">Entonces</span><span class="lt-hechos"><span class="lt-hecho" title="${escapar(p.concluye)}">${escapar(p.concluyeTexto || hechoLegible(p.concluye))}</span></span></div>`
         : p.conclusion ? `<div class="lt-bloque"><span class="lt-etq">Entonces</span><span class="lt-conclusion-texto">${escapar(p.conclusion)}</span></div>` : "";
       const tipo = p.tipo ? `<span class="insignia gris">${escapar(p.tipo)}</span>` : "";
       return `<li class="lt-paso"><span class="lt-marca" aria-hidden="true"></span>

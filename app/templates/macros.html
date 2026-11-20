@@ -165,9 +165,9 @@
     <div class="lt-bloque"><span class="lt-etq">Si</span>
       <ul class="lt-premisas">{% for x in p.premisas %}<li>{{ x|tildes }}</li>{% endfor %}</ul></div>
     {% endif %}
-    {% if p.hechos %}
+    {% if p.concluye %}
     <div class="lt-bloque"><span class="lt-etq">Entonces</span>
-      <span class="lt-hechos">{% for x in p.hechos %}<span class="lt-hecho" title="{{ x }}">{{ x|hecho }}</span>{% endfor %}</span></div>
+      <span class="lt-hechos"><span class="lt-hecho" title="{{ p.concluye }}">{{ p.concluye|hecho }}</span></span></div>
     {% elif p.conclusion %}
     <div class="lt-bloque"><span class="lt-etq">Entonces</span><span class="lt-conclusion-texto">{{ p.conclusion|tildes }}</span></div>
     {% endif %}

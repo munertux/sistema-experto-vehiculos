@@ -43,6 +43,8 @@ def presentar_como(pasos):
             paso["premisas"] = [tildes_texto(x) for x in paso.get("premisas") or []]
             # los hechos siguen como codigos (FALLA_CARGA); su forma legible va aparte
             paso["hechos_texto"] = [hecho(x) for x in paso.get("hechos") or []]
+            if paso.get("concluye"):
+                paso["concluye_texto"] = hecho(paso["concluye"])
             for clave in ("texto", "conclusion", "recomendacion", "nivel_atencion"):
                 if paso.get(clave):
                     paso[clave] = tildes_texto(paso[clave])
