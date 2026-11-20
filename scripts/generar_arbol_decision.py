@@ -199,9 +199,21 @@ class AdaptadorSimular:
 
     def paso(self, id_area, respuestas):
         r = self.servicio.simular(id_area, self.testigos, self.obd, dict(respuestas))
-        siguiente = _pregunta_a_dict(r.get("siguiente"))
+        siguiente = r.get("siguiente")
+        if siguiente is not None:
+            # el síntoma y la marca de entrada se leen del repositorio
+            siguiente = self.pregunta(siguiente["id_pregunta"] if isinstance(siguiente, dict) else siguiente.id_pregunta)
         hipotesis = [_hipotesis_normalizada(h) for h in (r.get("hipotesis") or [])]
-        motivo = r.get("motivo") or ("parada" if siguiente is None and respuestas else None)
+        motivo = r.get("motivo")
+        if motivo is None and siguiente is None and respuestas:
+            p = self.repo.parametros()
+            lider = hipotesis[0] if hipotesis else {}
+            if len(respuestas) >= p["max_preguntas"]:
+                motivo = "max_preguntas"
+            elif lider.get("sintoma_confirmado") and lider.get("probabilidad", 0) >= p["umbral_confianza"] * 100:
+                motivo = "confianza"
+            else:
+                motivo = "sin_preguntas"
         return {"siguiente": siguiente, "hipotesis": hipotesis, "motivo": motivo}
 
 
