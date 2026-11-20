@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Árbol de decisión</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='arbol.css') }}">
+</head>
+<body class="arbol-pagina">
+<header class="arbol-cabecera">
+  <h1>Árbol de decisión del motor de inferencia</h1>
+  <p>Cada nodo es una pregunta que el motor formula; cada rama, una respuesta (Sí / No); cada hoja, el diagnóstico donde el motor se detiene.</p>
+</header>
+{# Página autónoma de prueba; la vista integrada es conocimiento/arbol.html (rama interfaz). #}
+<main id="arbol" data-src="{{ url_for('static', filename='arbol_datos.json') }}"></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="{{ url_for('static', filename='arbol.js') }}"></script>
+</body>
+</html>
