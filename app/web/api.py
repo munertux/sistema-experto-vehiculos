@@ -8,7 +8,7 @@ sobre sus propias atenciones.
 """
 import re
 
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, current_app, jsonify, request, session
 
 from app.web.presentacion import clase_nivel, es_critico, tildes
 from app.web.seguridad import login_requerido, rol_requerido
@@ -112,8 +112,9 @@ def salud():
     try:
         resumen = servicio("conocimiento").resumen()
         return jsonify({"estado": "ok", "base_de_conocimiento": resumen})
-    except Exception as exc:  # pragma: no cover - depende de la base
-        return jsonify({"estado": "error", "detalle": str(exc)}), 500
+    except Exception:  # noqa: BLE001 - la sonda nunca debe filtrar detalles internos
+        current_app.logger.exception("Fallo la sonda /api/salud")
+        return jsonify({"estado": "error", "detalle": "La base de conocimiento no esta disponible."}), 500
 
 
 @bp.get("/areas")
