@@ -1,27 +1,17 @@
 {% extends "base.html" %}
 {% from "macros.html" import encabezado with context %}
-{% block titulo %}Árbol de conocimiento{% endblock %}
+{% block titulo %}Árbol de decisión{% endblock %}
 {% block clase_body %}pagina-arbol{% endblock %}
+{% block cabeza %}{% if script_arbol %}<link rel="stylesheet" href="{{ url_for('static', filename='arbol.css') }}">{% endif %}{% endblock %}
 {% block contenido %}
-{{ encabezado('Árbol de conocimiento') }}
+{{ encabezado('Árbol de decisión del motor de inferencia') }}
 
 <section class="panel panel-arbol">
-  <div class="panel-cabeza">
-    <div>
-      <h2>Áreas, preguntas, reglas e hipótesis</h2>
-      <p class="pequeno texto-2" style="margin:4px 0 0">Recorrido de la base de conocimiento: cada rama parte de un área, pasa por las preguntas y reglas que se activan y termina en una hipótesis de falla.</p>
-    </div>
-    <div class="arbol-leyenda" aria-label="Leyenda">
-      <span><i class="nodo-muestra nm-area" aria-hidden="true"></i>Área</span>
-      <span><i class="nodo-muestra nm-pregunta" aria-hidden="true"></i>Pregunta</span>
-      <span><i class="nodo-muestra nm-regla" aria-hidden="true"></i>Regla</span>
-      <span><i class="nodo-muestra nm-hipotesis" aria-hidden="true"></i>Hipótesis</span>
-    </div>
-  </div>
-  {# B3 dibuja aquí el árbol con D3 (static/arbol.js). #}
-  <div id="arbol" class="arbol-lienzo" role="region" aria-label="Árbol de conocimiento interactivo" tabindex="0"
-       data-usuario-rol="{{ usuario_actual.rol if usuario_actual else '' }}">
-    <p class="arbol-cargando" id="arbol-cargando">Cargando el árbol de conocimiento…</p>
+  <p class="pequeno texto-2" style="margin:0 0 14px">Cada nodo es una pregunta que hace el motor, cada rama es la respuesta Sí o No y cada hoja es un diagnóstico con su certeza y nivel de atención.</p>
+  {# B3 (static/arbol.js) reemplaza todo el contenido de #arbol. #}
+  <div id="arbol" class="arbol-lienzo" role="region" aria-label="Árbol de decisión interactivo"
+       data-src="{{ url_for('static', filename='arbol_datos.json') }}">
+    <p class="arbol-cargando">Cargando el árbol de decisión…</p>
   </div>
   <noscript><p class="aviso info">Esta vista necesita JavaScript para dibujar el árbol.</p></noscript>
 </section>

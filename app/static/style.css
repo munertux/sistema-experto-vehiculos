@@ -560,19 +560,9 @@ details.como[open] .como-flecha { transform: rotate(90deg); }
 .reporte .ht-cabeza h3 { font-size: 1rem; }
 
 /* ------------------------------------------------------- árbol (D3) */
-.arbol-leyenda { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .82rem; color: var(--texto-2); }
-.arbol-leyenda span { display: inline-flex; align-items: center; gap: 6px; }
-.nodo-muestra { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 2px solid; }
-.nodo-muestra.nm-area { background: var(--rojo); border-color: var(--rojo); }
-.nodo-muestra.nm-pregunta { background: #fff; border-color: var(--azul); }
-.nodo-muestra.nm-regla { background: #fbf3dc; border-color: var(--amarillo); border-radius: 3px; }
-.nodo-muestra.nm-hipotesis { background: #e8f4ec; border-color: var(--verde); }
-.arbol-lienzo {
-  min-height: 68vh; border: 1px solid var(--borde); border-radius: 8px; background: #fbfaf9;
-  overflow: auto; position: relative;
-}
+/* El alto y el desplazamiento los controla arbol.css (B3). */
+.arbol-lienzo { position: relative; }
 .arbol-cargando { color: var(--texto-3); text-align: center; padding: 60px 16px; margin: 0; }
-.arbol-lienzo svg { display: block; }
 
 /* ------------------------------------------------------- responsive */
 @media (max-width: 1100px) {
