@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "macros.html" import encabezado with context %}
+{% block titulo %}Árbol de conocimiento{% endblock %}
+{% block clase_body %}pagina-arbol{% endblock %}
+{% block contenido %}
+{{ encabezado('Árbol de conocimiento') }}
+
+<section class="panel panel-arbol">
+  <div class="panel-cabeza">
+    <div>
+      <h2>Áreas, preguntas, reglas e hipótesis</h2>
+      <p class="pequeno texto-2" style="margin:4px 0 0">Recorrido de la base de conocimiento: cada rama parte de un área, pasa por las preguntas y reglas que se activan y termina en una hipótesis de falla.</p>
+    </div>
+    <div class="arbol-leyenda" aria-label="Leyenda">
+      <span><i class="nodo-muestra nm-area" aria-hidden="true"></i>Área</span>
+      <span><i class="nodo-muestra nm-pregunta" aria-hidden="true"></i>Pregunta</span>
+      <span><i class="nodo-muestra nm-regla" aria-hidden="true"></i>Regla</span>
+      <span><i class="nodo-muestra nm-hipotesis" aria-hidden="true"></i>Hipótesis</span>
+    </div>
+  </div>
+  {# B3 dibuja aquí el árbol con D3 (static/arbol.js). #}
+  <div id="arbol" class="arbol-lienzo" role="region" aria-label="Árbol de conocimiento interactivo" tabindex="0"
+       data-usuario-rol="{{ usuario_actual.rol if usuario_actual else '' }}">
+    <p class="arbol-cargando" id="arbol-cargando">Cargando el árbol de conocimiento…</p>
+  </div>
+  <noscript><p class="aviso info">Esta vista necesita JavaScript para dibujar el árbol.</p></noscript>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+{% if script_arbol %}<script src="{{ url_for('static', filename='arbol.js') }}"></script>{% endif %}
+{% endblock %}

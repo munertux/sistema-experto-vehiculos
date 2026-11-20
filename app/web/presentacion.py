@@ -138,8 +138,66 @@ def lista(valor):
     return [p.strip() for p in re.split(r"[,;\n]", str(valor)) if p.strip()]
 
 
+def certeza_pct(valor):
+    """Certeza 0..1 (o 0..100) -> numero 0..100; None si no viene."""
+    if valor is None or valor == "":
+        return None
+    try:
+        v = float(valor)
+    except (TypeError, ValueError):
+        return None
+    if v <= 1:
+        v *= 100
+    return max(0.0, min(100.0, v))
+
+
+def certeza(valor):
+    """0.723 -> '72 %' (certeza absoluta de una hipotesis)."""
+    v = certeza_pct(valor)
+    return "—" if v is None else f"{v:.0f} %"
+
+
+def hecho(codigo):
+    """'FALLA_CARGA' -> 'Falla carga' (hecho intermedio legible)."""
+    texto = re.sub(r"[_\s]+", " ", str(codigo or "")).strip().lower()
+    return tildes(texto[:1].upper() + texto[1:]) if texto else ""
+
+
+def pasos_como(como):
+    """Normaliza la explicacion 'como' en una lista de pasos dict.
+
+    Acepta lista de dicts {regla, premisas, evidencia, hechos}, lista de
+    textos o un texto suelto. Devuelve [] si no hay explicacion."""
+    if not como:
+        return []
+    if isinstance(como, (str, dict)):
+        como = [como]
+    pasos = []
+    for paso in como:
+        if isinstance(paso, dict):
+            pasos.append({"regla": paso.get("regla") or paso.get("codigo") or "",
+                          "premisas": lista(paso.get("premisas")),
+                          "evidencia": paso.get("evidencia"),
+                          "hechos": lista(paso.get("hechos")),
+                          "texto": paso.get("texto") or ""})
+        elif str(paso).strip():
+            pasos.append({"regla": "", "premisas": [], "evidencia": None, "hechos": [], "texto": str(paso)})
+    return pasos
+
+
+def _vista_arbol():
+    import os
+    from flask import current_app, render_template
+    script = os.path.exists(os.path.join(current_app.static_folder, "arbol.js"))
+    return render_template("conocimiento/arbol.html", script_arbol=script)
+
+
 def instalar(app):
     app.jinja_env.filters.update(tildes=tildes, clase_nivel=clase_nivel, fecha=fecha,
                                  porcentaje=porcentaje, numero=numero, lista=lista,
-                                 decimal=decimal)
+                                 decimal=decimal, certeza=certeza, certeza_pct=certeza_pct,
+                                 hecho=hecho, pasos_como=pasos_como)
     app.jinja_env.tests["critico"] = es_critico
+    # Vista del arbol de conocimiento (D3): cualquier usuario autenticado.
+    from app.web.seguridad import login_requerido
+    app.add_url_rule("/arbol", "arbol", login_requerido(_vista_arbol), methods=["GET"])

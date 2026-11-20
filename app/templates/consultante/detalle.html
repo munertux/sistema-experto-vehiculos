@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import csrf, encabezado, estado_atencion, nivel, reglas, advertencia_critica, barra_probabilidad with context %}
+{% from "macros.html" import csrf, encabezado, estado_atencion, nivel, reglas, advertencia_critica, tarjeta_hipotesis with context %}
 {% block titulo %}Consulta n.º {{ d.id_atencion }}{% endblock %}
 {% block contenido %}
 {% call encabezado('Consulta n.º ' ~ d.id_atencion, [('Historial', url_for('consultante.historial')), ('Detalle', None)]) %}
@@ -19,21 +19,7 @@
         {% if d.falla_confirmada %}<span class="insignia verde">Falla real: {{ d.falla_confirmada.nombre|tildes }}</span>{% endif %}</div>
       {% if d.hipotesis %}
       <div class="resultados">
-        {% for h in d.hipotesis %}
-        <article class="resultado-item {{ h.nivel_clase }}">
-          <div class="resultado-cabeza">
-            <h3><span class="posicion">{{ h.posicion }}.</span>{{ h.nombre }}</h3>
-            {{ barra_probabilidad(h.probabilidad) }}
-          </div>
-          <div class="resultado-meta">
-            {{ nivel(h.nivel_atencion) }}
-            <span>Reglas activadas: {{ reglas(h.reglas_activadas) }}</span>
-            {% if h.falla_confirmada %}<span class="confirmada">✓ Falla real confirmada</span>{% endif %}
-          </div>
-          <p class="recomendacion"><strong>Recomendación:</strong> {{ h.recomendacion }}</p>
-          {% if h.falla_confirmada and h.observacion %}<p class="pequeno texto-2" style="margin:6px 0 0"><strong>Observación:</strong> {{ h.observacion }}</p>{% endif %}
-        </article>
-        {% endfor %}
+        {% for h in d.hipotesis %}{{ tarjeta_hipotesis(h) }}{% endfor %}
       </div>
       {% else %}
       <p class="vacio">La consulta aún no tiene diagnóstico.</p>

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "macros.html" import encabezado, icono_alerta with context %}
 {% block titulo %}Consulta en curso{% endblock %}
+{% block clase_body %}pagina-consulta{% endblock %}
 {% block contenido %}
 {{ encabezado('Consulta al sistema experto', [('Historial', url_for('consultante.historial')), ('Consulta n.º ' ~ datos.id_atencion, None)]) }}
 
@@ -11,20 +12,43 @@
   {% if d.codigos_obd %}<span>OBD-II: <strong class="mono">{{ d.codigos_obd|join(', ') }}</strong></span>{% endif %}
 </div>
 
-<section id="pantalla-pregunta" class="panel">
-  <div class="progreso-info"><span id="texto-progreso">Pregunta {{ datos.n }}</span><span>Responda según lo que observa en el vehículo</span></div>
-  <div class="progreso"><div id="barra-progreso" class="barra"></div></div>
-  <div class="tarjeta-pregunta">
-    <div class="pregunta-num" id="num-pregunta">Pregunta {{ datos.n }}</div>
-    <p id="texto-pregunta" class="pregunta">{{ datos.pregunta.enunciado if datos.pregunta else '' }}</p>
-    <div id="opciones-respuesta" class="escala" role="group" aria-label="Escala de respuesta"></div>
-  </div>
-  <div id="error-consulta" class="aviso error oculto" style="margin-top:16px"></div>
-  <div class="consulta-pie">
-    <span class="pequeno texto-3">El sistema se detiene cuando reúne evidencia suficiente o se agotan las preguntas del área.</span>
-    <button id="btn-finalizar" class="boton chico" type="button">Terminar y ver resultado</button>
-  </div>
-</section>
+<div id="pantalla-pregunta" class="consulta-disposicion {{ 'sin-lateral' if datos.hipotesis_en_curso is none }}">
+  <section class="panel panel-pregunta" aria-labelledby="texto-pregunta">
+    <div class="progreso-info">
+      <span id="texto-progreso" class="contador-preguntas">Pregunta <strong>{{ datos.n }}</strong></span>
+      <span id="texto-respondidas">{{ datos.n - 1 }} {{ 'respuesta registrada' if datos.n - 1 == 1 else 'respuestas registradas' }}</span>
+    </div>
+    <div class="progreso" aria-hidden="true"><div id="barra-progreso" class="barra"></div></div>
+
+    <div id="tarjeta-pregunta" class="tarjeta-pregunta">
+      <div class="pregunta-num" id="num-pregunta">Pregunta {{ datos.n }}</div>
+      <h2 id="texto-pregunta" class="pregunta" tabindex="-1">{{ datos.pregunta.enunciado if datos.pregunta else '' }}</h2>
+
+      <div class="por-que{{ ' oculto' if not (datos.pregunta and datos.pregunta.por_que) }}" id="caja-por-que">
+        <button type="button" class="boton-por-que" id="btn-por-que" aria-expanded="false" aria-controls="texto-por-que">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.6 9.2a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6M12 17h.01"/></svg>
+          ¿Por qué me pregunta esto?
+          <svg class="flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div id="texto-por-que" class="texto-por-que" hidden>{{ datos.pregunta.por_que if datos.pregunta and datos.pregunta.por_que else '' }}</div>
+      </div>
+
+      <div id="opciones-respuesta" class="escala" role="group" aria-label="Escala de respuesta"></div>
+    </div>
+    <div id="error-consulta" class="aviso error oculto" role="alert" style="margin-top:16px"></div>
+    <div class="consulta-pie">
+      <span class="pequeno texto-3">El sistema se detiene cuando reúne evidencia suficiente o se agotan las preguntas del área.</span>
+      <button id="btn-finalizar" class="boton chico" type="button">Terminar y ver resultado</button>
+    </div>
+  </section>
+
+  <aside class="panel panel-hipotesis" id="panel-hipotesis" aria-labelledby="titulo-hipotesis"{{ ' hidden' if datos.hipotesis_en_curso is none }}>
+    <div class="panel-cabeza"><h2 id="titulo-hipotesis">Hipótesis en evaluación</h2><span class="insignia gris" id="hip-cuenta"></span></div>
+    <p class="hip-estado" id="hip-estado" role="status" aria-live="polite" aria-atomic="true"></p>
+    <ol class="hip-lista" id="hip-lista"></ol>
+    <p class="hip-nota">La certeza combina la evidencia de sus respuestas mediante las reglas de la base de conocimiento. Se recalcula tras cada respuesta.</p>
+  </aside>
+</div>
 
 <section id="pantalla-resultado" class="oculto">
   <div id="advertencia" class="advertencia oculto" role="alert">
@@ -34,7 +58,7 @@
   </div>
   <div class="panel">
     <div class="panel-cabeza">
-      <h2>Hipótesis de falla más probables</h2>
+      <h2 id="titulo-resultado" tabindex="-1">Hipótesis de falla más probables</h2>
       <div class="acciones">
         <a class="boton chico" href="{{ url_for('consultante.detalle', id_atencion=datos.id_atencion) }}">Ver detalle</a>
         <a class="boton chico" href="{{ url_for('consultante.reporte', id_atencion=datos.id_atencion) }}" target="_blank" rel="noopener">Reporte imprimible</a>
