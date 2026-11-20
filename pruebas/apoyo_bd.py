@@ -7,6 +7,7 @@ y 06. Asi se prueba contra PostgreSQL real con las 68 reglas sin modificar
 los datos de desarrollo.
   - se_pruebas_motor: conocimiento intacto (solo lectura por las pruebas del motor)
   - se_pruebas: lo usan las pruebas de DAO y servicios (se modifica)
+  - se_pruebas_experto: 01, 02, 05, 06 + 07 y 08 (motor experto)
 
 Uso en un archivo de pruebas:
     from apoyo_bd import conexion_prueba, conexion_motor  # noqa: F401 (fixtures)
@@ -28,10 +29,11 @@ from app.datos.conexion import Conexion, _dsn_desde_env  # noqa: E402
 from app.datos.entorno import cargar_env  # noqa: E402
 
 ARCHIVOS = ["sql/01_esquema.sql", "sql/02_conocimiento.sql", "sql/05_transaccional.sql", "sql/06_semillas.sql"]
+ARCHIVOS_EXPERTO = ARCHIVOS + ["sql/07_motor_experto.sql", "sql/08_conocimiento_experto.sql"]
 _CACHE = {}
 
 
-def _crear_esquema(esquema: str) -> Conexion:
+def _crear_esquema(esquema: str, archivos=None) -> Conexion:
     if esquema in _CACHE:
         return _CACHE[esquema]
     cargar_env()
@@ -45,7 +47,7 @@ def _crear_esquema(esquema: str) -> Conexion:
             cur.execute(f"DROP SCHEMA IF EXISTS {esquema} CASCADE")
             cur.execute(f"CREATE SCHEMA {esquema}")
             cur.execute(f"SET search_path TO {esquema}")
-            for ruta in ARCHIVOS:
+            for ruta in archivos or ARCHIVOS:
                 with open(os.path.join(RAIZ, ruta), encoding="utf-8") as f:
                     cur.execute(f.read())
         conn.commit()
@@ -59,6 +61,11 @@ def _crear_esquema(esquema: str) -> Conexion:
 @pytest.fixture(scope="session")
 def conexion_motor():
     return _crear_esquema("se_pruebas_motor")
+
+
+@pytest.fixture(scope="session")
+def conexion_experto():
+    return _crear_esquema("se_pruebas_experto", ARCHIVOS_EXPERTO)
 
 
 @pytest.fixture(scope="session")

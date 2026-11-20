@@ -22,7 +22,36 @@ def presentar_pregunta(p):
     p = dict(p)
     p["enunciado"] = tildes(p.get("enunciado"))
     p["opciones"] = [dict(o, etiqueta=tildes(o.get("etiqueta"))) for o in p.get("opciones", [])]
+    if p.get("por_que"):
+        p["por_que"] = tildes(p["por_que"])
     return p
+
+
+def presentar_como(pasos):
+    salida = []
+    for paso in pasos or []:
+        if isinstance(paso, dict):
+            paso = dict(paso)
+            paso["premisas"] = [tildes(x) for x in paso.get("premisas") or []]
+            for clave in ("texto", "conclusion", "recomendacion"):
+                if paso.get(clave):
+                    paso[clave] = tildes(paso[clave])
+        else:
+            paso = tildes(paso)
+        salida.append(paso)
+    return salida
+
+
+def presentar_en_curso(hipotesis):
+    salida = []
+    for h in hipotesis or []:
+        h = dict(h)
+        nivel = h.get("nivel_atencion") or ""
+        h["nombre"] = tildes(h.get("nombre"))
+        h["nivel_texto"] = tildes(nivel)
+        h["nivel_clase"] = clase_nivel(nivel)
+        salida.append(h)
+    return salida
 
 
 def presentar_resultado(hipotesis):
@@ -37,6 +66,8 @@ def presentar_resultado(hipotesis):
         h["nivel_clase"] = clase_nivel(nivel)
         h["advertencia"] = bool(h.get("advertencia")) or es_critico(nivel)
         h["reglas_activadas"] = list(h.get("reglas_activadas") or [])
+        if "como" in h:
+            h["como"] = presentar_como(h.get("como"))
         salida.append(h)
     return salida
 
@@ -119,6 +150,8 @@ def estado(id_atencion):
         r["resultado"] = presentar_resultado(r.get("resultado"))
     else:
         r["pregunta"] = presentar_pregunta(r.get("pregunta"))
+    if "hipotesis_en_curso" in r:
+        r["hipotesis_en_curso"] = presentar_en_curso(r["hipotesis_en_curso"])
     return jsonify(r)
 
 
@@ -141,6 +174,8 @@ def responder(id_atencion):
         resultado["resultado"] = presentar_resultado(resultado.get("resultado"))
     else:
         resultado["pregunta"] = presentar_pregunta(resultado.get("pregunta"))
+    if "hipotesis_en_curso" in resultado:
+        resultado["hipotesis_en_curso"] = presentar_en_curso(resultado["hipotesis_en_curso"])
     return jsonify(resultado)
 
 
@@ -172,3 +207,14 @@ def confirmar(id_atencion):
     except ERRORES_USUARIO as exc:
         return _error(exc)
     return jsonify({"estado": "confirmado"})
+
+
+@bp.get("/conocimiento/kb")
+@rol_requerido("ingeniero")
+def base_conocimiento():
+    """Volcado JSON de la base de conocimiento: areas, preguntas,
+    hipotesis, reglas (con condiciones), hechos, testigos y OBD."""
+    try:
+        return jsonify(servicio("conocimiento").base_conocimiento())
+    except ERRORES_USUARIO as exc:
+        return _error(exc)

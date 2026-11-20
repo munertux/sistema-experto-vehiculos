@@ -527,6 +527,8 @@ class MotorInferencia:
                     "evidencia": e["evidencia"], "peso": e["peso"], "aporte": e["incremento"],
                     "certeza": e["certeza"],
                     "hechos": [p["referencia"] for p in e.get("premisas", []) if p["tipo"] == "hecho"],
+                    "nivel_atencion": e.get("nivel_atencion"), "gravedad": e.get("gravedad"),
+                    "recomendacion": e.get("recomendacion"),
                     "texto": f"{e['codigo']}: SI {' Y '.join(premisas)} ENTONCES '{nombre}' (evidencia minima "
                              f"{e['evidencia']:.2f} x peso {e['peso']:g} = +{e['incremento']:.2f})",
                 })

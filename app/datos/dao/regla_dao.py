@@ -12,7 +12,46 @@ def _regla(f) -> Regla:
     return Regla(**f)
 
 
+# Regla simple = granulo directo del manual (sin premisas en regla_condicion, sql/07).
+_SIMPLE = ("id_hipotesis IS NOT NULL AND NOT EXISTS "
+           "(SELECT 1 FROM regla_condicion c WHERE c.id_regla = reglas.id_regla)")
+
+
 class ReglaDAO(BaseDAO):
+    _experto = False
+
+    def tiene_motor_experto(self, tx=None) -> bool:
+        if not self._experto:
+            self._experto = bool(self._escalar("SELECT to_regclass('regla_condicion') IS NOT NULL", tx=tx))
+        return self._experto
+
+    def _simple(self, tx=None) -> str:
+        return _SIMPLE if self.tiene_motor_experto(tx) else "TRUE"
+
+    def es_compuesta(self, id_regla: int, tx=None) -> bool:
+        """True si la regla tiene premisas en regla_condicion (compuesta o intermedia)."""
+        if not self.tiene_motor_experto(tx):
+            return False
+        return self._fila("SELECT 1 FROM regla_condicion WHERE id_regla = %s LIMIT 1", (id_regla,), tx) is not None
+
+    def condiciones(self, id_regla: int, tx=None) -> list:
+        if not self.tiene_motor_experto(tx):
+            return []
+        return self._filas("SELECT orden, tipo, referencia, valor_esperado FROM regla_condicion "
+                           "WHERE id_regla = %s ORDER BY orden", (id_regla,), tx)
+
+    def condiciones_invalidas(self, tx=None) -> list:
+        """Premisas de reglas activas que apuntan a preguntas inexistentes o
+        inactivas, o a hechos que ninguna regla activa concluye."""
+        if not self.tiene_motor_experto(tx):
+            return []
+        return self._filas(
+            "SELECT r.id_regla, r.codigo, c.tipo, c.referencia FROM regla_condicion c "
+            "JOIN reglas r ON r.id_regla = c.id_regla WHERE r.activa AND ("
+            " (c.tipo = 'pregunta' AND NOT EXISTS (SELECT 1 FROM preguntas p WHERE p.activa "
+            "   AND p.id_pregunta::text = c.referencia))"
+            " OR (c.tipo = 'hecho' AND NOT EXISTS (SELECT 1 FROM reglas r2 WHERE r2.activa "
+            "   AND r2.concluye_hecho = c.referencia))) ORDER BY r.id_regla, c.orden", tx=tx)
     def obtener(self, id_regla: int, tx=None):
         f = self._fila(f"SELECT {_COLUMNAS} FROM reglas WHERE id_regla = %s", (id_regla,), tx)
         return _regla(f) if f else None
@@ -37,10 +76,26 @@ class ReglaDAO(BaseDAO):
             "r.id_hipotesis, h.nombre AS hipotesis, r.id_area, a.nombre AS area, r.nivel_atencion, "
             "r.gravedad, r.recomendacion, r.peso, r.version, r.activa "
             "FROM reglas r JOIN preguntas p ON p.id_pregunta = r.id_pregunta "
-            "JOIN hipotesis h ON h.id_hipotesis = r.id_hipotesis JOIN areas a ON a.id_area = r.id_area "
+            "LEFT JOIN hipotesis h ON h.id_hipotesis = r.id_hipotesis JOIN areas a ON a.id_area = r.id_area "
             f"{where} ORDER BY r.id_regla", parametros, tx)
+        compuestas = {}
+        if filas and self.tiene_motor_experto(tx):
+            for c in self._filas("SELECT c.id_regla, c.tipo, c.referencia, c.valor_esperado, r.concluye_hecho "
+                                 "FROM regla_condicion c JOIN reglas r ON r.id_regla = c.id_regla "
+                                 "ORDER BY c.id_regla, c.orden", tx=tx):
+                compuestas.setdefault(c["id_regla"], []).append(c)
         for f in filas:
             f["peso"] = float(f["peso"])
+            conds = compuestas.get(f["id_regla"], [])
+            f["condiciones"] = [{k: c[k] for k in ("tipo", "referencia", "valor_esperado")} for c in conds]
+            f["concluye_hecho"] = conds[0]["concluye_hecho"] if conds else None
+            if f["hipotesis"] is None and f["concluye_hecho"]:
+                f["hipotesis"] = "Hecho intermedio: " + f["concluye_hecho"]
+            if conds:   # la columna "SI (pregunta)" muestra la premisa completa
+                f["enunciado"] = " Y ".join(
+                    ("NO " if c["valor_esperado"] == "no" else "")
+                    + (f"P{c['referencia']}" if c["tipo"] == "pregunta" else f"{c['tipo']} {c['referencia']}")
+                    for c in conds) + " | " + (f["enunciado"] or "")
         return filas
 
     def listar_por_hipotesis(self, id_hipotesis: int, tx=None) -> list:
@@ -57,7 +112,8 @@ class ReglaDAO(BaseDAO):
 
     def existe_activa(self, id_pregunta: int, id_hipotesis: int, excluir_id: int = None, tx=None) -> bool:
         return self._fila(
-            "SELECT 1 FROM reglas WHERE id_pregunta = %s AND id_hipotesis = %s AND activa AND id_regla <> %s",
+            "SELECT 1 FROM reglas WHERE id_pregunta = %s AND id_hipotesis = %s AND activa AND id_regla <> %s "
+            f"AND {self._simple(tx)}",
             (id_pregunta, id_hipotesis, excluir_id or -1), tx) is not None
 
     def existe_codigo(self, codigo: str, excluir_id: int = None, tx=None) -> bool:
@@ -107,7 +163,7 @@ class ReglaDAO(BaseDAO):
         """Pares pregunta-hipotesis con mas de una regla activa."""
         return self._filas(
             "SELECT id_pregunta, id_hipotesis, array_agg(codigo ORDER BY codigo) AS codigos "
-            "FROM reglas WHERE activa GROUP BY id_pregunta, id_hipotesis HAVING COUNT(*) > 1 "
+            f"FROM reglas WHERE activa AND {self._simple(tx)} GROUP BY id_pregunta, id_hipotesis HAVING COUNT(*) > 1 "
             "ORDER BY id_pregunta", tx=tx)
 
     def area_distinta_a_pregunta(self, tx=None) -> list:

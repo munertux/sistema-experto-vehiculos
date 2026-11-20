@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """AtencionDAO: base transaccional de las consultas (atencion, respuestas
 y diagnostico). RNF-11: cada diagnostico guarda las reglas activadas."""
+import json
+
 from app.datos.dao.base_dao import BaseDAO
 from app.logica.entidades import Atencion
 
@@ -9,6 +11,17 @@ _COLUMNAS = ("id_atencion, id_area, fecha_inicio, fecha_fin, estado, id_vehiculo
 
 
 class AtencionDAO(BaseDAO):
+    _columnas_experto = False
+
+    def tiene_columnas_experto(self, tx=None) -> bool:
+        """True si atencion_diagnostico ya tiene certeza y explicacion (sql/07)."""
+        if not self._columnas_experto:
+            n = self._escalar(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = current_schema() "
+                "AND table_name = 'atencion_diagnostico' AND column_name IN ('certeza', 'explicacion')", tx=tx)
+            self._columnas_experto = int(n or 0) == 2
+        return self._columnas_experto
+
     # ----------------------------------------------------------- atencion
     def abrir(self, id_area: int, id_vehiculo: int = None, testigos: str = None, codigos_obd: str = None,
               id_consultante: int = None, tx=None) -> int:
@@ -68,32 +81,51 @@ class AtencionDAO(BaseDAO):
         return filas
 
     # --------------------------------------------------------- diagnostico
-    def guardar_diagnostico(self, id_atencion: int, resultados, codigos_por_hipotesis: dict = None, tx=None):
+    def guardar_diagnostico(self, id_atencion: int, resultados, codigos_por_hipotesis: dict = None, tx=None,
+                            explicaciones: dict = None):
         """Reemplaza el diagnostico de la atencion y la cierra. `resultados`
-        son HipotesisPonderada; `codigos_por_hipotesis` = {id_h: ['R01', ...]}."""
+        son HipotesisPonderada; `codigos_por_hipotesis` = {id_h: ['R01', ...]};
+        `explicaciones` = {id_h: [pasos del "como"]} (se guarda en JSON si la
+        base tiene las columnas de sql/07, igual que la certeza)."""
         codigos_por_hipotesis = codigos_por_hipotesis or {}
         if tx is None:
             with self._db.transaccion() as cur:
-                return self.guardar_diagnostico(id_atencion, resultados, codigos_por_hipotesis, cur)
+                return self.guardar_diagnostico(id_atencion, resultados, codigos_por_hipotesis, cur, explicaciones)
+        experto = self.tiene_columnas_experto(tx)
         self._ejecutar("DELETE FROM atencion_diagnostico WHERE id_atencion = %s", (id_atencion,), tx)
         for hp in resultados:
             codigos = codigos_por_hipotesis.get(hp.hipotesis.id_hipotesis) or []
-            self._ejecutar(
-                "INSERT INTO atencion_diagnostico (id_atencion, id_hipotesis, puntaje, probabilidad, posicion, "
-                "reglas_activadas) VALUES (%s, %s, %s, %s, %s, %s)",
-                (id_atencion, hp.hipotesis.id_hipotesis, hp.puntaje, hp.probabilidad, hp.posicion,
-                 ",".join(codigos) or None), tx)
+            valores = (id_atencion, hp.hipotesis.id_hipotesis, hp.puntaje, hp.probabilidad, hp.posicion,
+                       ",".join(codigos) or None)
+            if experto:
+                pasos = (explicaciones or {}).get(hp.hipotesis.id_hipotesis)
+                self._ejecutar(
+                    "INSERT INTO atencion_diagnostico (id_atencion, id_hipotesis, puntaje, probabilidad, posicion, "
+                    "reglas_activadas, certeza, explicacion) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    valores + (round(float(getattr(hp, "certeza", 0.0)), 4),
+                               json.dumps(pasos, ensure_ascii=False) if pasos is not None else None), tx)
+            else:
+                self._ejecutar(
+                    "INSERT INTO atencion_diagnostico (id_atencion, id_hipotesis, puntaje, probabilidad, posicion, "
+                    "reglas_activadas) VALUES (%s, %s, %s, %s, %s, %s)", valores, tx)
         self.cerrar(id_atencion, tx)
 
     def diagnostico(self, id_atencion: int, tx=None) -> list:
+        extra = ", d.certeza, d.explicacion" if self.tiene_columnas_experto(tx) else \
+            ", NULL AS certeza, NULL AS explicacion"
         filas = self._filas(
             "SELECT d.posicion, d.id_hipotesis, h.nombre, h.descripcion, d.puntaje, d.probabilidad, "
-            "d.falla_confirmada, d.reglas_activadas, d.observacion "
+            f"d.falla_confirmada, d.reglas_activadas, d.observacion{extra} "
             "FROM atencion_diagnostico d JOIN hipotesis h ON h.id_hipotesis = d.id_hipotesis "
             "WHERE d.id_atencion = %s ORDER BY d.posicion", (id_atencion,), tx)
         for f in filas:
             f["puntaje"] = float(f["puntaje"])
             f["probabilidad"] = float(f["probabilidad"])
+            f["certeza"] = None if f["certeza"] is None else float(f["certeza"])
+            try:
+                f["explicacion"] = json.loads(f["explicacion"]) if f["explicacion"] else None
+            except ValueError:
+                f["explicacion"] = None
         return filas
 
     def confirmar_falla(self, id_atencion: int, id_hipotesis: int, observacion: str = None, tx=None) -> int:

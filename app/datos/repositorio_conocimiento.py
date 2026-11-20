@@ -7,6 +7,8 @@ Motor experto (sql/07 y 08): las consultas "simples" del manual solo
 consideran reglas sin condiciones en regla_condicion (granulos directos);
 las reglas compuestas e intermedias se leen con reglas_compuestas(). Si la
 base aun no tiene las tablas de 07, todo se comporta como antes."""
+import time
+
 from app.logica.modelos import Area, Pregunta, Hipotesis, Granulo
 
 # Filtro SQL de regla simple (granulo directo del manual); "r" es el alias de reglas.
@@ -18,14 +20,17 @@ class RepositorioConocimiento:
     def __init__(self, conexion):
         self._db = conexion
         self._experto = False
+        self._revisado = -1e9
 
     # ------------------------------------------------------ motor experto
     def tiene_motor_experto(self) -> bool:
         """True si la base ya tiene las tablas de sql/07 (se recuerda solo el si)."""
-        if not self._experto:
+        # el "no" se vuelve a comprobar cada 60 s (por si se aplica 07 con la app en marcha)
+        if not self._experto and time.monotonic() - self._revisado > 60:
             fila = self._db.consultar("SELECT to_regclass('regla_condicion') IS NOT NULL "
                                       "AND to_regclass('obd_hipotesis') IS NOT NULL AS ok")
             self._experto = bool(fila and fila[0]["ok"])
+            self._revisado = time.monotonic()
         return self._experto
 
     def _simple(self) -> str:

@@ -59,6 +59,10 @@ class ServicioConocimiento:
             "problemas": len(self.validar()),
         }
 
+    def base_conocimiento(self) -> dict:
+        """Base de conocimiento completa (para /api/conocimiento/kb y el arbol)."""
+        return self._repo_c.base_conocimiento()
+
     @staticmethod
     def opciones_regla() -> dict:
         return {"niveles_atencion": list(NIVELES_ATENCION), "gravedades": [1, 2, 3, 4],
@@ -193,11 +197,18 @@ class ServicioConocimiento:
         actual = self._reglas.obtener(int(id_regla))
         if actual is None:
             raise ErrorNegocio("La regla no existe.")
+        if actual.id_hipotesis is None:
+            raise ErrorNegocio(f"La regla {actual.codigo} es intermedia (concluye un hecho); "
+                               "se mantiene en sql/08_conocimiento_experto.sql. Solo se puede activar o desactivar.")
+        compuesta = self._reglas.es_compuesta(actual.id_regla)
         base = a_dict(actual)
         base.update({k: v for k, v in datos.items() if v is not None})
         limpios = self._validar_regla(base)
-        if actual.activa and self._reglas.existe_activa(limpios["id_pregunta"], limpios["id_hipotesis"],
-                                                        excluir_id=id_regla):
+        if compuesta and limpios["id_pregunta"] != actual.id_pregunta:
+            raise ErrorNegocio("La pregunta principal de una regla compuesta no se cambia desde el formulario.")
+        if not compuesta and actual.activa and self._reglas.existe_activa(limpios["id_pregunta"],
+                                                                          limpios["id_hipotesis"],
+                                                                          excluir_id=id_regla):
             raise ErrorNegocio("Ya existe otra regla activa que une esa pregunta con esa hipotesis.")
         if limpios.get("codigo") and self._reglas.existe_codigo(limpios["codigo"], excluir_id=id_regla):
             raise ErrorNegocio(f"El codigo {limpios['codigo']} ya existe.")
@@ -216,7 +227,8 @@ class ServicioConocimiento:
         activa = bool(activa)
         if actual.activa == activa:
             return
-        if activa and self._reglas.existe_activa(actual.id_pregunta, actual.id_hipotesis, excluir_id=id_regla):
+        if activa and actual.id_hipotesis is not None and not self._reglas.es_compuesta(actual.id_regla) and \
+                self._reglas.existe_activa(actual.id_pregunta, actual.id_hipotesis, excluir_id=id_regla):
             raise ErrorNegocio("Ya existe otra regla activa que une esa pregunta con esa hipotesis.")
         with self._db.transaccion() as tx:
             self._reglas.cambiar_activa(id_regla, activa, tx=tx)
@@ -235,8 +247,10 @@ class ServicioConocimiento:
         areas = []
         for r in reglas:
             pregunta = self._preguntas.obtener(r.id_pregunta)
+            condiciones = self._reglas.condiciones(r.id_regla)
             granulos.append({
-                "tipo": "directo",
+                "tipo": "compuesta" if condiciones else "directo",
+                "condiciones": condiciones,
                 "id_pregunta": r.id_pregunta,
                 "enunciado": pregunta.enunciado if pregunta else "",
                 "codigo_regla": r.codigo,
@@ -290,6 +304,10 @@ class ServicioConocimiento:
         for a in self._areas.sin_pregunta_de_entrada():
             problemas.append({"tipo": "area_sin_entrada", "entidad": "area", "id": a.id_area,
                               "mensaje": f"El area '{a.nombre}' no tiene pregunta de entrada activa."})
+        for c in self._reglas.condiciones_invalidas():
+            problemas.append({"tipo": "condicion_invalida", "entidad": "regla", "id": c["id_regla"],
+                              "mensaje": f"La regla {c['codigo']} tiene una premisa {c['tipo']} '{c['referencia']}' "
+                                         "que no existe, esta inactiva o ninguna regla activa la concluye."})
         for r in self._reglas.area_distinta_a_pregunta():
             problemas.append({"tipo": "regla_area_inconsistente", "entidad": "regla", "id": r["id_regla"],
                               "mensaje": f"La regla {r['codigo']} tiene un area distinta a la de su pregunta."})
