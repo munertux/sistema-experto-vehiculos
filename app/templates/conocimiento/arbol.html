@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "macros.html" import encabezado with context %}
+{% block titulo %}Árbol de decisión{% endblock %}
+{% block clase_body %}pagina-arbol{% endblock %}
+{% block cabeza %}{% if script_arbol %}<link rel="stylesheet" href="{{ url_for('static', filename='arbol.css') }}">{% endif %}{% endblock %}
+{% block contenido %}
+{{ encabezado('Árbol de decisión del motor de inferencia') }}
+
+<section class="panel panel-arbol">
+  <p class="pequeno texto-2" style="margin:0 0 14px">Cada nodo es una pregunta que hace el motor, cada rama es la respuesta Sí o No y cada hoja es un diagnóstico con su certeza y nivel de atención.</p>
+  {# B3 (static/arbol.js) reemplaza todo el contenido de #arbol. #}
+  <div id="arbol" class="arbol-lienzo" role="region" aria-label="Árbol de decisión interactivo"
+       data-src="{{ url_for('static', filename='arbol_datos.json') }}">
+    <p class="arbol-cargando">Cargando el árbol de decisión…</p>
+  </div>
+  <noscript><p class="aviso info">Esta vista necesita JavaScript para dibujar el árbol.</p></noscript>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+{% if script_arbol %}<script src="{{ url_for('static', filename='arbol.js') }}"></script>{% endif %}
+{% endblock %}

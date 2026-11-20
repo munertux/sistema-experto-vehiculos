@@ -5,6 +5,7 @@ from flask import (Blueprint, abort, flash, redirect, render_template, request,
                    session, url_for)
 
 from app.web.api import es_propia, presentar_pregunta, presentar_resultado
+from app.web.presentacion import clase_nivel, tildes
 from app.web.seguridad import rol_requerido
 from app.web.servicios import ERRORES_USUARIO, mensaje, servicio
 
@@ -178,12 +179,32 @@ def consulta(id_atencion):
         return redirect(url_for("consultante.historial"))
     if estado.get("estado") == "finalizado":
         return redirect(url_for("consultante.detalle", id_atencion=id_atencion))
+    pregunta = presentar_pregunta(estado.get("pregunta"))
+    if pregunta and pregunta.get("por_que"):
+        pregunta["por_que"] = tildes(pregunta["por_que"])
     datos = {
         "id_atencion": id_atencion,
-        "pregunta": presentar_pregunta(estado.get("pregunta")),
+        "pregunta": pregunta,
         "n": len(detalle.get("respuestas") or []) + 1,
+        # None = el servicio aun no publica el campo (la UI oculta el panel)
+        "hipotesis_en_curso": _en_curso(estado.get("hipotesis_en_curso")),
     }
     return render_template("consultante/consulta.html", d=detalle, datos=datos)
+
+
+def _en_curso(lista):
+    """Top de hipotesis en evaluacion listo para mostrar (tolerante)."""
+    if lista is None:
+        return None
+    salida = []
+    for h in lista:
+        h = dict(h)
+        nivel = h.get("nivel_atencion") or ""
+        h["nombre"] = tildes(h.get("nombre"))
+        h["nivel_texto"] = tildes(nivel)
+        h["nivel_clase"] = clase_nivel(nivel)
+        salida.append(h)
+    return salida
 
 
 # -------------------------------------------------------------- historial

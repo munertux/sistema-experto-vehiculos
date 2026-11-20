@@ -10,5 +10,5 @@ __pycache__/
 *.backup
 respaldos/
 .claude/
-.venv/
 .env.local
+capturas/

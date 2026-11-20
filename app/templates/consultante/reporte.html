@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import nivel, reglas, advertencia_critica with context %}
+{% from "macros.html" import nivel, reglas, advertencia_critica, tarjeta_hipotesis with context %}
 {% block titulo %}Reporte de diagnóstico n.º {{ d.id_atencion }}{% endblock %}
 {% block contenido %}
 <div class="barra-reporte no-imprimir">
@@ -39,21 +39,9 @@
 
   <h2>Hipótesis de falla (top 5)</h2>
   {% if d.hipotesis %}
-  <table class="tabla">
-    <thead><tr><th class="num">#</th><th>Hipótesis</th><th class="num">Probabilidad</th><th>Nivel de atención</th><th>Reglas</th></tr></thead>
-    <tbody>
-    {% for h in d.hipotesis %}
-      <tr>
-        <td class="num">{{ h.posicion }}</td>
-        <td><strong>{{ h.nombre }}</strong>{% if h.falla_confirmada %} <span class="insignia verde">Falla real</span>{% endif %}
-          <div class="pequeno texto-2" style="margin-top:3px">{{ h.recomendacion }}</div></td>
-        <td class="num">{{ h.probabilidad|porcentaje }}</td>
-        <td>{{ nivel(h.nivel_atencion) }}</td>
-        <td>{{ reglas(h.reglas_activadas) }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+  <div class="resultados reporte-hipotesis">
+    {% for h in d.hipotesis %}{{ tarjeta_hipotesis(h, plegable=False) }}{% endfor %}
+  </div>
   {% else %}
   <p class="texto-2">La consulta no tiene diagnóstico registrado.</p>
   {% endif %}

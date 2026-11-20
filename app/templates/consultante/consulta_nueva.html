@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import csrf, encabezado with context %}
+{% from "macros.html" import csrf, encabezado, chip_testigo with context %}
 {% block titulo %}Nueva consulta{% endblock %}
 {% block contenido %}
 {{ encabezado('Nueva consulta al sistema experto') }}
@@ -41,24 +41,37 @@
 
   <div class="rejilla rejilla-3-1">
     <section class="panel">
-      <h2 class="paso"><span class="paso-num">3</span> Testigos encendidos en el tablero <span class="texto-3 pequeno" style="font-weight:400">(opcional)</span></h2>
-      <div class="opciones-tarjeta compactas">
-        {% for t in testigos %}
-        <label class="opcion-tarjeta">
-          <input type="checkbox" name="testigos" value="{{ t }}" {{ 'checked' if t in seleccion.testigos }}>
-          <span>{{ t|tildes }}</span>
-        </label>
-        {% endfor %}
-      </div>
+      <fieldset class="grupo-testigos">
+        <legend class="paso"><span class="paso-num">3</span> Testigos encendidos en el tablero <span class="texto-3 pequeno" style="font-weight:400">(opcional)</span></legend>
+        <p class="pequeno texto-2 testigos-ayuda">Marque los íconos que vea encendidos con el motor en marcha.
+          <span class="leyenda-testigo"><i class="punto rojo" aria-hidden="true"></i>Rojo: detenerse o revisar ya</span>
+          <span class="leyenda-testigo"><i class="punto ambar" aria-hidden="true"></i>Ámbar: revisar pronto</span></p>
+        <div class="testigos">
+          {% for t in testigos %}{{ chip_testigo(t, t in seleccion.testigos) }}{% endfor %}
+        </div>
+        <p class="pequeno texto-2 testigos-cuenta" id="testigos-cuenta" aria-live="polite"></p>
+      </fieldset>
     </section>
     <section class="panel">
       <h2 class="paso"><span class="paso-num">4</span> Códigos OBD-II <span class="texto-3 pequeno" style="font-weight:400">(opcional)</span></h2>
-      <div class="campo">
+      <div class="campo campo-obd">
         <label for="codigos_obd">Códigos leídos con el escáner</label>
         <input type="text" id="codigos_obd" name="codigos_obd" value="{{ seleccion.codigos_obd }}"
-               placeholder="P0300, P0171" maxlength="200" style="text-transform:uppercase">
-        <p class="ayuda">Sepárelos con comas. Formato: una letra (P, C, B o U) y cuatro caracteres.</p>
+               placeholder="P0300, P0171" maxlength="200" autocapitalize="characters" spellcheck="false"
+               aria-describedby="obd-ayuda obd-estado">
+        <div id="obd-estado" class="obd-codigos" aria-live="polite"></div>
+        <p class="ayuda" id="obd-ayuda">Sepárelos con comas o espacios. Cada código tiene una letra y cuatro caracteres, por ejemplo <span class="mono">P0300</span>.</p>
       </div>
+      <details class="obd-explica">
+        <summary>¿Qué significa cada código?</summary>
+        <dl class="obd-letras">
+          <dt class="mono">P</dt><dd>Tren motriz: motor, transmisión y emisiones.</dd>
+          <dt class="mono">C</dt><dd>Chasis: frenos, suspensión y dirección.</dd>
+          <dt class="mono">B</dt><dd>Carrocería: airbag, climatización y confort.</dd>
+          <dt class="mono">U</dt><dd>Red de comunicación entre módulos.</dd>
+        </dl>
+        <p class="pequeno texto-2" style="margin:8px 0 0">Si el segundo carácter es 0 el código es genérico (igual en todas las marcas); si es 1, 2 o 3 lo define el fabricante.</p>
+      </details>
     </section>
   </div>
 
@@ -69,3 +82,4 @@
 </form>
 {% endif %}
 {% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='consulta_nueva.js') }}"></script>{% endblock %}

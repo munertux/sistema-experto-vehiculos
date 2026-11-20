@@ -14,8 +14,23 @@
 </div>
 {%- endmacro %}
 
+{# Ícono propio de cada nivel de atención: el nivel nunca se comunica solo con color. #}
+{% macro icono_nivel(clase) -%}
+{%- if clase == 'nivel-atencion-preventiva' -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.4 3 8.2 7 9.5 4-1.3 7-5.1 7-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg>
+{%- elif clase == 'nivel-revision-proxima' -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+{%- elif clase == 'nivel-revision-prioritaria' -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+{%- elif clase == 'nivel-no-debe-seguir-usandose' -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2h8l6 6v8l-6 6H8l-6-6V8z"/><path d="M8 12h8"/></svg>
+{%- else -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+{%- endif -%}
+{%- endmacro %}
+
 {% macro nivel(texto) -%}
-{% if texto %}<span class="nivel {{ texto|clase_nivel }}">{{ texto|tildes }}</span>{% else %}<span class="texto-3">—</span>{% endif %}
+{% if texto %}{% set c = texto|clase_nivel %}<span class="nivel con-icono {{ c }}">{{ icono_nivel(c) }}{{ texto|tildes }}</span>{% else %}<span class="texto-3">—</span>{% endif %}
 {%- endmacro %}
 
 {% macro estado_activo(activo) -%}
@@ -53,4 +68,164 @@
   <div class="probabilidad-barra"><i style="width: {{ [v, 100]|min }}%"></i></div>
   <strong>{{ v|porcentaje }}</strong>
 </div>
+{%- endmacro %}
+
+{# ------------------------------------------------------------------
+   Testigos del tablero: ícono SVG reconocible y color ISO 2575
+   (rojo = detenerse/peligro, ámbar = revisar pronto).
+   ------------------------------------------------------------------ #}
+{% macro tipo_testigo(nombre) -%}
+{%- set n = (nombre or '')|lower -%}
+{%- if 'check' in n or 'motor' in n -%}motor
+{%- elif 'bateria' in n or 'carga' in n -%}bateria
+{%- elif 'aceite' in n -%}aceite
+{%- elif 'temperatura' in n or 'refrigerante' in n -%}temperatura
+{%- elif 'abs' == n.strip() or n.startswith('abs') -%}abs
+{%- elif 'freno' in n -%}frenos
+{%- elif 'airbag' in n -%}airbag
+{%- elif 'esp' in n or 'estabilidad' in n or 'traccion' in n -%}esp
+{%- elif 'tpms' in n or 'neumatico' in n -%}tpms
+{%- elif 'eps' in n or 'direccion' in n -%}eps
+{%- elif 'precalentamiento' in n or 'bujia' in n -%}precalentamiento
+{%- elif 'inmovilizador' in n or 'antirrobo' in n -%}inmovilizador
+{%- elif 'combustible' in n -%}combustible
+{%- else -%}generico{%- endif -%}
+{%- endmacro %}
+
+{% macro icono_testigo(tipo) -%}
+<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+{%- if tipo == 'motor' -%}
+<path d="M5 13v8M5 17h3M8 12h3v-2h7v2h3l2 3h3v-2h1v9h-1v-2h-3l-2 3H11l-3-3v-8z"/><path d="M13 10V8h5"/>
+{%- elif tipo == 'bateria' -%}
+<rect x="4" y="10" width="24" height="15" rx="1.5"/><path d="M8 10V7.5h4V10M20 10V7.5h4V10M8.5 17.5h5M11 15v5M19 17.5h5"/>
+{%- elif tipo == 'aceite' -%}
+<path d="M3 13h5l2-2h3v2h6l7-3-6 9H8l-2-3H3z"/><path d="M13 11V9M11 9h4"/><path d="M27 18c0 1.4-.9 2.5-2 2.5s-2-1.1-2-2.5 2-4 2-4 2 2.6 2 4z"/>
+{%- elif tipo == 'temperatura' -%}
+<path d="M16 4v13"/><circle cx="16" cy="20" r="3"/><path d="M16 8h4M16 12h4M5 25c2-1.6 4-1.6 6 0s4 1.6 6 0 4-1.6 6 0 4 1.6 4 0"/>
+{%- elif tipo == 'abs' -%}
+<circle cx="16" cy="16" r="9.5"/><path d="M6.5 7.5a13 13 0 0 0 0 17M25.5 7.5a13 13 0 0 1 0 17"/><text x="16" y="19.6" text-anchor="middle" font-size="9" font-weight="700" fill="currentColor" stroke="none" font-family="Arial, sans-serif">ABS</text>
+{%- elif tipo == 'frenos' -%}
+<circle cx="16" cy="16" r="9.5"/><path d="M6.5 7.5a13 13 0 0 0 0 17M25.5 7.5a13 13 0 0 1 0 17M16 10.5v7M16 21.5h.01"/>
+{%- elif tipo == 'airbag' -%}
+<circle cx="11" cy="6" r="2.5"/><path d="M10 10l-1 9h7l3 7M9 19l-3 7M14 13h4"/><circle cx="23" cy="13" r="5"/>
+{%- elif tipo == 'esp' -%}
+<path d="M7 16l2-5a2 2 0 0 1 1.8-1.3h10.4A2 2 0 0 1 23 11l2 5v4H7z"/><circle cx="11" cy="20" r="1.4"/><circle cx="21" cy="20" r="1.4"/><path d="M7 26c1.5-2 3-2 4.5 0M14 26c1.5-2 3-2 4.5 0M21 26c1.5-2 3-2 4.5 0"/>
+{%- elif tipo == 'tpms' -%}
+<path d="M8 8c-2.5 2.2-4 5-4 8.5 0 3 1 5.5 3 7.5h18c2-2 3-4.5 3-7.5 0-3.5-1.5-6.3-4-8.5"/><path d="M7 27h18M16 9v8M16 20.5h.01"/>
+{%- elif tipo == 'eps' -%}
+<circle cx="16" cy="16" r="10"/><circle cx="16" cy="16" r="3"/><path d="M6.5 13h6.6M19 13h6.5M16 19v7"/><path d="M27.5 5v4M27.5 11.5h.01"/>
+{%- elif tipo == 'precalentamiento' -%}
+<path d="M4 20c2-6 4-6 6 0s4 6 6 0 4-6 6 0 4 6 6 0"/><path d="M4 12h24"/>
+{%- elif tipo == 'inmovilizador' -%}
+<path d="M5 18l2-5a2 2 0 0 1 1.8-1.3H19"/><path d="M5 18h14v4H5z"/><circle cx="9" cy="22" r="1.4"/><circle cx="23.5" cy="9.5" r="3.5"/><path d="M23.5 13v10M23.5 18h3M23.5 21h2"/>
+{%- elif tipo == 'combustible' -%}
+<rect x="6" y="5" width="12" height="22" rx="1.5"/><path d="M6 13h12M18 10h3l3 3v10a2 2 0 0 1-4 0v-5h-2"/><path d="M4 27h16"/>
+{%- else -%}
+<circle cx="16" cy="16" r="10"/><path d="M16 10v7M16 21h.01"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+
+
+{% macro chip_testigo(t, marcado=False) -%}
+{% set colores = {'motor': 'ambar', 'bateria': 'rojo', 'aceite': 'rojo', 'temperatura': 'rojo',
+  'abs': 'ambar', 'frenos': 'rojo', 'airbag': 'rojo', 'esp': 'ambar', 'tpms': 'ambar', 'eps': 'ambar',
+  'precalentamiento': 'ambar', 'inmovilizador': 'rojo', 'combustible': 'ambar', 'generico': 'ambar'} %}
+{% set tipo = tipo_testigo(t) %}
+<label class="testigo testigo-{{ colores.get(tipo, 'ambar') }}">
+  <input type="checkbox" name="testigos" value="{{ t }}" {{ 'checked' if marcado }}>
+  <span class="testigo-cuerpo">
+    <span class="testigo-luz">{{ icono_testigo(tipo) }}</span>
+    <span class="testigo-nombre">{{ t|tildes }}</span>
+    <svg class="testigo-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>
+  </span>
+</label>
+{%- endmacro %}
+
+{# ------------------------------------------------------------------
+   Tarjeta de hipótesis: certeza absoluta + probabilidad relativa,
+   nivel (color + ícono + texto), recomendación y explicación «cómo».
+   plegable=False la deja abierta (reporte imprimible).
+   ------------------------------------------------------------------ #}
+{% macro cadena_como(h) -%}
+{% set pasos = h.como|pasos_como %}
+<ol class="linea-tiempo">
+  {% for p in pasos %}
+  <li class="lt-paso">
+    <span class="lt-marca" aria-hidden="true"></span>
+    {% if p.regla or p.premisas or p.hechos or p.conclusion %}
+    <div class="lt-cabeza">
+      {% if p.regla %}<span class="codigo-regla">{{ p.regla }}</span>{% endif %}
+      <span class="lt-titulo">Paso {{ loop.index }}{% if p.regla %}: se activa la regla {{ p.regla }}{% endif %}</span>
+      {% if p.tipo %}<span class="insignia gris">{{ p.tipo }}</span>{% endif %}
+      {% if p.evidencia is not none %}<span class="lt-evidencia" title="Factor de certeza aportado por la regla">evidencia {{ p.evidencia|decimal }}</span>{% endif %}
+    </div>
+    {% if p.premisas %}
+    <div class="lt-bloque"><span class="lt-etq">Si</span>
+      <ul class="lt-premisas">{% for x in p.premisas %}<li>{{ x|tildes }}</li>{% endfor %}</ul></div>
+    {% endif %}
+    {% if p.hechos %}
+    <div class="lt-bloque"><span class="lt-etq">Entonces</span>
+      <span class="lt-hechos">{% for x in p.hechos %}<span class="lt-hecho" title="{{ x }}">{{ x|hecho }}</span>{% endfor %}</span></div>
+    {% elif p.conclusion %}
+    <div class="lt-bloque"><span class="lt-etq">Entonces</span><span class="lt-conclusion-texto">{{ p.conclusion|tildes }}</span></div>
+    {% endif %}
+    {% if p.texto %}<p class="lt-texto">{{ p.texto|tildes }}</p>{% endif %}
+    {% else %}
+    <p class="lt-texto">{{ p.texto|tildes }}</p>
+    {% endif %}
+  </li>
+  {% endfor %}
+  <li class="lt-paso lt-conclusion">
+    <span class="lt-marca" aria-hidden="true"></span>
+    <div class="lt-cabeza"><span class="lt-titulo">Conclusión: {{ h.nombre }}</span>
+      {% if h.certeza is defined and h.certeza is not none %}<span class="lt-evidencia">certeza {{ h.certeza|certeza }}</span>{% endif %}</div>
+  </li>
+</ol>
+{%- endmacro %}
+
+{% macro tarjeta_hipotesis(h, plegable=True) -%}
+{% set clase = h.nivel_clase or (h.nivel_atencion|clase_nivel) %}
+{% set cp = h.certeza|certeza_pct if h.certeza is defined else none %}
+{% set prob = (h.probabilidad or 0)|float %}
+{% set pasos = h.como|pasos_como if h.como is defined else [] %}
+<article class="hipotesis-tarjeta {{ clase }}" aria-labelledby="hip-{{ h.id_hipotesis }}-{{ h.posicion }}">
+  <header class="ht-cabeza">
+    <span class="ht-posicion" aria-label="Posición {{ h.posicion }}">{{ h.posicion }}</span>
+    <h3 id="hip-{{ h.id_hipotesis }}-{{ h.posicion }}">{{ h.nombre }}</h3>
+    {{ nivel(h.nivel_atencion) }}
+  </header>
+  <div class="ht-metricas">
+    {% if cp is not none %}
+    <div class="metrica">
+      <div class="metrica-fila"><span class="metrica-etq">Certeza</span><strong class="metrica-valor">{{ h.certeza|certeza }}</strong></div>
+      <div class="medidor" role="img" aria-label="Certeza {{ h.certeza|certeza }}"><i style="width: {{ cp }}%"></i></div>
+      <p class="metrica-ayuda">Qué tan respaldada está por la evidencia (0–100 %).</p>
+    </div>
+    {% endif %}
+    <div class="metrica {{ 'secundaria' if cp is not none }}">
+      <div class="metrica-fila"><span class="metrica-etq">Probabilidad relativa</span><strong class="metrica-valor">{{ prob|porcentaje }}</strong></div>
+      <div class="medidor relativo" role="img" aria-label="Probabilidad relativa {{ prob|porcentaje }}"><i style="width: {{ [prob, 100]|min }}%"></i></div>
+      <p class="metrica-ayuda">Participación frente a las demás hipótesis.</p>
+    </div>
+  </div>
+  {% if h.recomendacion %}<p class="recomendacion"><strong>Recomendación:</strong> {{ h.recomendacion }}</p>{% endif %}
+  <div class="resultado-meta">
+    <span>Reglas activadas: {{ reglas(h.reglas_activadas) }}</span>
+    {% if h.falla_confirmada %}<span class="confirmada">✓ Falla real confirmada</span>{% endif %}
+  </div>
+  {% if h.falla_confirmada and h.observacion %}<p class="pequeno texto-2" style="margin:6px 0 0"><strong>Observación:</strong> {{ h.observacion }}</p>{% endif %}
+  {% if pasos %}
+    {% if plegable %}
+    <details class="como">
+      <summary><svg class="como-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>¿Cómo llegó a esta conclusión? <span class="texto-3">({{ pasos|length }} {{ 'paso' if pasos|length == 1 else 'pasos' }})</span></summary>
+      {{ cadena_como(h) }}
+    </details>
+    {% else %}
+    <div class="como abierto"><p class="como-titulo">¿Cómo llegó a esta conclusión?</p>{{ cadena_como(h) }}</div>
+    {% endif %}
+  {% endif %}
+  {% if caller is defined %}<div class="resultado-acciones">{{ caller() }}</div>{% endif %}
+</article>
 {%- endmacro %}
