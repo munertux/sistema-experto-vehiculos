@@ -15,7 +15,7 @@ MINUTOS_BLOQUEO = 15
 LONGITUD_MINIMA_CLAVE = 8
 MENSAJE_CREDENCIALES = ("Usuario o contraseña incorrectos. Por seguridad, tras "
                         f"{MAX_INTENTOS} intentos fallidos el acceso se suspende {MINUTOS_BLOQUEO} minutos.")
-MENSAJE_CUENTA_NO_HABILITADA = "Su cuenta no está habilitada. Comuníquese con el administrador."
+
 # Hash ficticio para que un usuario inexistente tarde lo mismo que uno real.
 _HASH_FICTICIO = generate_password_hash("clave-ficticia-para-tiempo-constante")
 
@@ -62,13 +62,13 @@ class ServicioAutenticacion:
                 raise ErrorNegocio(MENSAJE_CREDENCIALES)
             self._usuarios.liberar_bloqueo_vencido(usuario.id_usuario)
 
-        clave_valida = check_password_hash(usuario.contrasena_hash, clave)
         if usuario.estado == "inactivo" or (usuario.estado == "bloqueado" and usuario.bloqueado_hasta is None):
-            if not clave_valida:
-                raise ErrorNegocio(MENSAJE_CREDENCIALES)
-            raise ErrorNegocio(MENSAJE_CUENTA_NO_HABILITADA)
+            # Sin contador de intentos en estas cuentas: verificar la clave real
+            # daria un oraculo para adivinarla sin limite.
+            check_password_hash(_HASH_FICTICIO, clave)
+            raise ErrorNegocio(MENSAJE_CREDENCIALES)
 
-        if not clave_valida:
+        if not check_password_hash(usuario.contrasena_hash, clave):
             self._usuarios.registrar_intento_fallido(usuario.id_usuario, MAX_INTENTOS, MINUTOS_BLOQUEO)
             raise ErrorNegocio(MENSAJE_CREDENCIALES)
 

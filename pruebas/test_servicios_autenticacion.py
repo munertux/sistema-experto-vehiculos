@@ -7,7 +7,7 @@ from app.datos.dao.usuario_dao import UsuarioDAO
 from app.logica.errores import ErrorNegocio
 from app.logica.servicio_administracion import ServicioAdministracion
 from app.logica.servicio_autenticacion import (MAX_INTENTOS, MENSAJE_CREDENCIALES,
-                                               MENSAJE_CUENTA_NO_HABILITADA, MINUTOS_BLOQUEO,
+                                               MINUTOS_BLOQUEO,
                                                ServicioAutenticacion)
 
 CLAVE = "Prueba2026x"
@@ -98,14 +98,14 @@ def test_inactivo_y_bloqueo_administrativo(conexion_prueba, auth):
     admin = ServicioAdministracion(conexion_prueba)
     nombre, id_u = crear(conexion_prueba)
     admin.activar(id_u, False)
-    # con clave incorrecta: generico (no revela la cuenta ni su estado)
+    # generico con cualquier clave: la clave real no se verifica, asi no hay
+    # oraculo para adivinarla en cuentas sin contador de intentos
     assert _mensaje(auth, nombre, "mala-clave1") == MENSAJE_CREDENCIALES
-    # solo quien conoce la clave sabe que la cuenta no esta habilitada
-    assert _mensaje(auth, nombre, CLAVE) == MENSAJE_CUENTA_NO_HABILITADA
+    assert _mensaje(auth, nombre, CLAVE) == MENSAJE_CREDENCIALES
     admin.activar(id_u, True)
     admin.bloquear(id_u)
     assert _mensaje(auth, nombre, "mala-clave1") == MENSAJE_CREDENCIALES
-    assert _mensaje(auth, nombre, CLAVE) == MENSAJE_CUENTA_NO_HABILITADA
+    assert _mensaje(auth, nombre, CLAVE) == MENSAJE_CREDENCIALES
     u = UsuarioDAO(conexion_prueba).obtener(id_u)
     assert u.estado == "bloqueado" and u.bloqueado_hasta is None   # el fallo no altera el estado
     admin.desbloquear(id_u)
