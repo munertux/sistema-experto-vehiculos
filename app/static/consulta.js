@@ -260,6 +260,8 @@
   }
 
   // ------------------------------------------------------- resultado
+  const TIPOS_PASO = { testigo: "Testigo del tablero", obd: "Código OBD-II", directa: "Regla directa",
+    intermedia: "Hecho intermedio", compuesta: "Regla compuesta" };
   function pasosComo(como) {
     if (!como) return [];
     const lista = Array.isArray(como) ? como : [como];
@@ -267,26 +269,29 @@
       .map((p) => {
         if (p && typeof p === "object") {
           const arr = (v) => (Array.isArray(v) ? v : v ? String(v).split(/[,;]\s*/) : []).filter((x) => String(x).trim());
-          return { regla: p.regla || p.codigo || "", premisas: arr(p.premisas), evidencia: p.evidencia, hechos: arr(p.hechos), texto: p.texto || "" };
+          return { regla: p.regla || p.codigo || "", premisas: arr(p.premisas), evidencia: p.evidencia, hechos: arr(p.hechos),
+            tipo: TIPOS_PASO[String(p.tipo || "").toLowerCase()] || "", conclusion: p.conclusion || "", texto: p.texto || "" };
         }
-        return String(p || "").trim() ? { regla: "", premisas: [], evidencia: null, hechos: [], texto: String(p) } : null;
+        return String(p || "").trim() ? { regla: "", premisas: [], evidencia: null, hechos: [], tipo: "", conclusion: "", texto: String(p) } : null;
       })
       .filter(Boolean);
   }
 
   function lineaTiempo(h, pasos, cp) {
     const items = pasos.map((p, i) => {
-      const estructurado = p.regla || p.premisas.length || p.hechos.length;
+      const estructurado = p.regla || p.premisas.length || p.hechos.length || p.conclusion;
       if (!estructurado) return `<li class="lt-paso"><span class="lt-marca" aria-hidden="true"></span><p class="lt-texto">${escapar(p.texto)}</p></li>`;
       const ev = p.evidencia !== undefined && p.evidencia !== null && p.evidencia !== "" ?
         `<span class="lt-evidencia" title="Factor de certeza aportado por la regla">evidencia ${fmtDec(p.evidencia)}</span>` : "";
       const premisas = p.premisas.length ?
         `<div class="lt-bloque"><span class="lt-etq">Si</span><ul class="lt-premisas">${p.premisas.map((x) => `<li>${escapar(x)}</li>`).join("")}</ul></div>` : "";
       const hechos = p.hechos.length ?
-        `<div class="lt-bloque"><span class="lt-etq">Entonces</span><span class="lt-hechos">${p.hechos.map((x) => `<span class="lt-hecho" title="${escapar(x)}">${escapar(hechoLegible(x))}</span>`).join("")}</span></div>` : "";
+        `<div class="lt-bloque"><span class="lt-etq">Entonces</span><span class="lt-hechos">${p.hechos.map((x) => `<span class="lt-hecho" title="${escapar(x)}">${escapar(hechoLegible(x))}</span>`).join("")}</span></div>`
+        : p.conclusion ? `<div class="lt-bloque"><span class="lt-etq">Entonces</span><span class="lt-conclusion-texto">${escapar(p.conclusion)}</span></div>` : "";
+      const tipo = p.tipo ? `<span class="insignia gris">${escapar(p.tipo)}</span>` : "";
       return `<li class="lt-paso"><span class="lt-marca" aria-hidden="true"></span>
         <div class="lt-cabeza">${p.regla ? `<span class="codigo-regla">${escapar(p.regla)}</span>` : ""}
-          <span class="lt-titulo">Paso ${i + 1}${p.regla ? `: se activa la regla ${escapar(p.regla)}` : ""}</span>${ev}</div>
+          <span class="lt-titulo">Paso ${i + 1}${p.regla ? `: se activa la regla ${escapar(p.regla)}` : ""}</span>${tipo}${ev}</div>
         ${premisas}${hechos}${p.texto ? `<p class="lt-texto">${escapar(p.texto)}</p>` : ""}</li>`;
     });
     items.push(`<li class="lt-paso lt-conclusion"><span class="lt-marca" aria-hidden="true"></span>

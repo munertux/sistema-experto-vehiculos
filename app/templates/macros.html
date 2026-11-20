@@ -154,10 +154,11 @@
   {% for p in pasos %}
   <li class="lt-paso">
     <span class="lt-marca" aria-hidden="true"></span>
-    {% if p.regla or p.premisas or p.hechos %}
+    {% if p.regla or p.premisas or p.hechos or p.conclusion %}
     <div class="lt-cabeza">
       {% if p.regla %}<span class="codigo-regla">{{ p.regla }}</span>{% endif %}
       <span class="lt-titulo">Paso {{ loop.index }}{% if p.regla %}: se activa la regla {{ p.regla }}{% endif %}</span>
+      {% if p.tipo %}<span class="insignia gris">{{ p.tipo }}</span>{% endif %}
       {% if p.evidencia is not none %}<span class="lt-evidencia" title="Factor de certeza aportado por la regla">evidencia {{ p.evidencia|decimal }}</span>{% endif %}
     </div>
     {% if p.premisas %}
@@ -167,6 +168,8 @@
     {% if p.hechos %}
     <div class="lt-bloque"><span class="lt-etq">Entonces</span>
       <span class="lt-hechos">{% for x in p.hechos %}<span class="lt-hecho" title="{{ x }}">{{ x|hecho }}</span>{% endfor %}</span></div>
+    {% elif p.conclusion %}
+    <div class="lt-bloque"><span class="lt-etq">Entonces</span><span class="lt-conclusion-texto">{{ p.conclusion|tildes }}</span></div>
     {% endif %}
     {% if p.texto %}<p class="lt-texto">{{ p.texto|tildes }}</p>{% endif %}
     {% else %}

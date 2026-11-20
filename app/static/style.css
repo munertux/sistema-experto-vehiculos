@@ -551,6 +551,7 @@ details.como[open] .como-flecha { transform: rotate(90deg); }
 .lt-premisas li + li { margin-top: 2px; }
 .lt-hechos { display: flex; flex-wrap: wrap; gap: 6px; }
 .lt-hecho { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .8rem; font-weight: 600; background: #fbf3dc; color: #5e4603; border: 1px solid #ecd9a0; }
+.lt-conclusion-texto { font-size: .9rem; font-weight: 600; }
 .lt-texto { margin: 2px 0 0; font-size: .88rem; color: #333; }
 
 /* reporte imprimible */

@@ -163,6 +163,10 @@ def hecho(codigo):
     return tildes(texto[:1].upper() + texto[1:]) if texto else ""
 
 
+TIPOS_PASO = {"testigo": "Testigo del tablero", "obd": "Código OBD-II", "directa": "Regla directa",
+              "intermedia": "Hecho intermedio", "compuesta": "Regla compuesta"}
+
+
 def pasos_como(como):
     """Normaliza la explicacion 'como' en una lista de pasos dict.
 
@@ -179,9 +183,12 @@ def pasos_como(como):
                           "premisas": lista(paso.get("premisas")),
                           "evidencia": paso.get("evidencia"),
                           "hechos": lista(paso.get("hechos")),
+                          "tipo": TIPOS_PASO.get(str(paso.get("tipo") or "").lower(), ""),
+                          "conclusion": paso.get("conclusion") or "",
                           "texto": paso.get("texto") or ""})
         elif str(paso).strip():
-            pasos.append({"regla": "", "premisas": [], "evidencia": None, "hechos": [], "texto": str(paso)})
+            pasos.append({"regla": "", "premisas": [], "evidencia": None, "hechos": [], "tipo": "",
+                          "conclusion": "", "texto": str(paso)})
     return pasos
 
 
