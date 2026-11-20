@@ -370,7 +370,7 @@ class MotorInferencia:
                      "hipotesis de falla.")
             lider = self._lider(memoria)
             if lider and lider[2] > 0:
-                texto += (f" Con los testigos y codigos OBD registrados, la hipotesis lider es "
+                texto += (f" Con los testigos y codigos OBD registrados, la hipotesis líder es "
                           f"'{lider[1]}' (certeza {lider[2]:.2f}).")
             return texto
         if tipo == "contraste":
@@ -389,7 +389,7 @@ class MotorInferencia:
         posicion = next((i for i, (h, _) in enumerate(ranking, start=1) if h == id_h), None)
         total = sum(p for _, p in ranking) or 1e-9
         prob = memoria.puntajes.get(id_h, 0.0) / total * 100
-        papel = "la hipotesis lider" if posicion == 1 else f"la hipotesis en evaluacion (puesto {posicion})"
+        papel = "la hipotesis líder" if posicion == 1 else f"la hipotesis en evaluacion (puesto {posicion})"
         inicio = (f"Le pregunto esto porque {papel} es '{nombre}' "
                   f"(certeza {memoria.certeza(id_h):.2f}, probabilidad relativa {prob:.0f} %)")
         if tipo == "directa":
@@ -529,7 +529,7 @@ class MotorInferencia:
                     "hechos": [p["referencia"] for p in e.get("premisas", []) if p["tipo"] == "hecho"],
                     "nivel_atencion": e.get("nivel_atencion"), "gravedad": e.get("gravedad"),
                     "recomendacion": e.get("recomendacion"),
-                    "texto": f"{e['codigo']}: SI {' Y '.join(premisas)} ENTONCES '{nombre}' (evidencia minima "
+                    "texto": f"{e['codigo']}: SI {' Y '.join(premisas)} ENTONCES '{nombre}' (evidencia mínima "
                              f"{e['evidencia']:.2f} x peso {e['peso']:g} = +{e['incremento']:.2f})",
                 })
         return pasos

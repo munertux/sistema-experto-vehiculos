@@ -6,6 +6,8 @@ Se conservan las rutas historicas (/api/salud, /api/areas y
 X-CSRF-Token con el token de la sesion. Un consultante solo puede operar
 sobre sus propias atenciones.
 """
+import re
+
 from flask import Blueprint, jsonify, request, session
 
 from app.web.presentacion import clase_nivel, es_critico, tildes
@@ -23,8 +25,20 @@ def presentar_pregunta(p):
     p["enunciado"] = tildes(p.get("enunciado"))
     p["opciones"] = [dict(o, etiqueta=tildes(o.get("etiqueta"))) for o in p.get("opciones", [])]
     if p.get("por_que"):
-        p["por_que"] = tildes(p["por_que"])
+        p["por_que"] = tildes_texto(p["por_que"])
     return p
+
+
+# Identificadores de la base (FALLA_CARGA, T:BATERIA, OBD:P0562, R72) no llevan tildes.
+_IDENTIFICADOR = re.compile(r"((?:T:|OBD:)?\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b|\b(?:T|OBD):[A-Z0-9_]+|\b[A-Z]{4,}\b)")
+
+
+def tildes_texto(texto):
+    """tildes() sin tocar los codigos en mayusculas."""
+    if not texto:
+        return texto
+    partes = _IDENTIFICADOR.split(str(texto))
+    return "".join(p if i % 2 else tildes(p) for i, p in enumerate(partes))
 
 
 def presentar_como(pasos):
@@ -32,12 +46,12 @@ def presentar_como(pasos):
     for paso in pasos or []:
         if isinstance(paso, dict):
             paso = dict(paso)
-            paso["premisas"] = [tildes(x) for x in paso.get("premisas") or []]
+            paso["premisas"] = [tildes_texto(x) for x in paso.get("premisas") or []]
             for clave in ("texto", "conclusion", "recomendacion"):
                 if paso.get(clave):
-                    paso[clave] = tildes(paso[clave])
+                    paso[clave] = tildes_texto(paso[clave])
         else:
-            paso = tildes(paso)
+            paso = tildes_texto(paso)
         salida.append(paso)
     return salida
 

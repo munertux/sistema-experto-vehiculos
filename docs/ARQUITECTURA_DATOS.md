@@ -178,3 +178,18 @@ Script idempotente: `CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS` y l
 Índices: `idx_vehiculo_consultante`, `idx_atencion_vehiculo`, `idx_atencion_consultante`, `idx_bitacora_fecha`.
 
 Aplicación: `python scripts/aplicar_sql.py` (aplica 05 y 06 sobre `DATABASE_URL`); `--todos` recrea también 01 y 02.
+
+## 6. Motor experto (`sql/07_motor_experto.sql`, `sql/08_conocimiento_experto.sql`)
+
+DDL aditivo e idempotente (sin DROP). Una regla sin filas en `regla_condicion` sigue siendo un gránulo directo del manual.
+
+| Tabla / columna | Contenido |
+|---|---|
+| `hechos` | codigo PK, descripcion (FALLA_CARGA, MEZCLA_RICA, PERDIDA_LUBRICACION, SOBRECALENTAMIENTO, FALLA_ENCENDIDO…) |
+| `reglas.concluye_hecho` (+) | FK→hechos, NULL. `id_hipotesis` pasa a NULLable; CHECK: exactamente uno de los dos |
+| `regla_condicion` | (id_regla, orden) PK, tipo CHECK (pregunta, testigo, obd, hecho), referencia, valor_esperado CHECK (si, no) |
+| `testigo_hipotesis` | (testigo, id_hipotesis) PK, peso |
+| `obd_hipotesis` | (prefijo, id_hipotesis) PK, peso, descripcion (se usa el prefijo más largo por código) |
+| `atencion_diagnostico` (+) | certeza NUMERIC(5,4), explicacion TEXT (JSON del «cómo») |
+
+08 agrega R69–R110 (29 compuestas, 13 intermedias, 2 niveles de encadenamiento: R69→R70→R72/R73), 23 mapeos de testigos y 33 de prefijos OBD. Las reglas se insertan solo si su código no existe y las condiciones solo se asocian si la pregunta principal coincide.

@@ -252,6 +252,7 @@ class ServicioDiagnostico:
         Devuelve {"siguiente": pregunta serializada | None,
                   "hipotesis": [hipotesis serializadas, top 5],
                   "detenido": bool (el motor concluyo),
+                  "motivo": "confianza" | "max_preguntas" | "sin_preguntas" | None (sigue en curso),
                   "camino": [{"id_pregunta", "respuesta"}] respondidas en orden}."""
         area = self._repo_c.area(int(id_area))
         if area is None:
@@ -263,7 +264,7 @@ class ServicioDiagnostico:
         motor = self._motor_de_simulacion()
         memoria = MemoriaTrabajo(motor._p["puntaje_base"])
         pregunta = motor.iniciar(area.id_area, memoria, self.codigos_testigos(testigos), self.normalizar_obd(obd))
-        camino, detenido = [], False
+        camino, detenido, motivo = [], False, None
         limite = int(motor._p["max_preguntas"]) + int(motor._p["max_contrastes"]) + 5
         while pregunta is not None and pregunta.id_pregunta in respuestas and len(camino) < limite:
             clave = respuestas[pregunta.id_pregunta]
@@ -271,10 +272,12 @@ class ServicioDiagnostico:
             camino.append({"id_pregunta": pregunta.id_pregunta, "respuesta": clave})
             if motor.debe_detenerse(memoria):
                 pregunta, detenido = None, True
+                motivo = ("max_preguntas" if len(memoria.preguntas_respondidas) >= motor._p["max_preguntas"]
+                          else "confianza")
                 break
             pregunta = motor.siguiente_pregunta(memoria, area.id_area)
             if pregunta is None:
-                detenido = True
+                detenido, motivo = True, "sin_preguntas"
         resultados = motor.hipotesis_ponderadas(memoria)
         ids_regla = {i for hp in resultados for i in hp.reglas_activadas}
         codigos = motor._repo.codigos_de_reglas(ids_regla)
@@ -282,7 +285,7 @@ class ServicioDiagnostico:
             hp, self._sin_repetir([codigos.get(i, str(i)) for i in hp.reglas_activadas]),
             motor.como(memoria, hp.hipotesis.id_hipotesis)) for hp in resultados]
         return {"siguiente": self._serializar_pregunta(pregunta, memoria, motor), "hipotesis": hipotesis,
-                "detenido": detenido, "camino": camino}
+                "detenido": detenido, "motivo": motivo, "camino": camino}
 
     def _motor_de_simulacion(self):
         if self._motor_simulacion is None:
