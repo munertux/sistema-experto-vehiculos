@@ -156,7 +156,8 @@ class AdaptadorMotor:
                 raise ValueError("Camino inválido: el motor ya se había detenido")
         # ranking ponderado del estado (diagnóstico final si pendiente es None)
         hipotesis = []
-        resultados = self.motor.hipotesis_ponderadas(memoria)
+        # diagnostico: solo hipotesis con certeza >= umbral_minimo_certeza
+        resultados = self.motor.diagnostico(memoria)
         ids = {i for hp in resultados for i in hp.reglas_activadas}
         codigos = self.repo.codigos_de_reglas(sorted(ids)) if ids else {}
         for hp in resultados:
@@ -174,6 +175,7 @@ class AdaptadorMotor:
                 "recomendacion": hp.recomendacion,
                 "sintoma_confirmado": hp.sintoma_confirmado,
                 "reglas_activadas": reglas,
+                "certeza": round(hp.certeza, 4),
             })
         return {"siguiente": _pregunta_a_dict(pendiente), "hipotesis": hipotesis, "motivo": motivo}
 
@@ -225,6 +227,7 @@ def _hipotesis_normalizada(h):
             "nivel_atencion": h.nivel_atencion, "recomendacion": h.recomendacion,
             "sintoma_confirmado": h.sintoma_confirmado,
             "reglas_activadas": [str(x) for x in h.reglas_activadas],
+            "certeza": round(h.certeza, 4),
         }
     prob = h.get("probabilidad", h.get("certeza", 0)) or 0
     if prob <= 1 and "probabilidad" not in h:
@@ -238,6 +241,7 @@ def _hipotesis_normalizada(h):
         "recomendacion": h.get("recomendacion", ""),
         "sintoma_confirmado": bool(h.get("sintoma_confirmado")),
         "reglas_activadas": [str(x) for x in (h.get("reglas_activadas") or [])],
+        "certeza": float(h.get("certeza") or 0.0),
     }
 
 
@@ -254,27 +258,35 @@ def crear_adaptador(conexion, tipo="auto"):
 # ======================================================================
 # Construcción del árbol
 # ======================================================================
+SIN_FALLA = "Sin falla identificada"
+MENSAJE_SIN_FALLA = ("Con la evidencia aportada no se identificó una falla en el área; "
+                     "si el síntoma persiste, consulte un técnico.")
+
+
 def _hoja(resultado, motivo, camino):
+    """Hoja del árbol. `resultado["hipotesis"]` es el diagnóstico del motor
+    (solo hipótesis con certeza >= umbral_minimo_certeza); si está vacío la
+    hoja es "Sin falla identificada" y no lleva nivel de atención."""
     hipotesis = resultado["hipotesis"]
     lider = hipotesis[0] if hipotesis else None
-    con_evidencia = bool(lider and (lider.get("puntaje") or 0) > 0)
+    con_evidencia = lider is not None
     return {
         "tipo": "diagnostico",
         "motivo": motivo,
         "motivo_texto": MOTIVOS.get(motivo, MOTIVOS["parada"]),
         "con_evidencia": con_evidencia,
-        "hipotesis": tx(lider["nombre"]) if lider else "Sin hipótesis",
+        "hipotesis": tx(lider["nombre"]) if lider else SIN_FALLA,
         "id_hipotesis": lider["id_hipotesis"] if lider else None,
         "probabilidad": lider["probabilidad"] if lider else 0.0,
-        "certeza": round((lider["probabilidad"] if lider else 0.0) / 100, 3),
+        "certeza": round(float(lider.get("certeza") or 0.0), 3) if lider else 0.0,
         "nivel_atencion": tx(lider["nivel_atencion"]) if lider else "Sin información",
         "nivel": clase_nivel(lider["nivel_atencion"]).replace("nivel-", "") if lider else "sin-informacion",
-        "recomendacion": tx(lider["recomendacion"]) if lider else "",
+        "recomendacion": tx(lider["recomendacion"]) if lider else MENSAJE_SIN_FALLA,
         "sintoma_confirmado": bool(lider and lider.get("sintoma_confirmado")),
         "reglas": lider["reglas_activadas"] if lider else [],
         "alternativas": [
             {"hipotesis": tx(h["nombre"]), "probabilidad": h["probabilidad"], "nivel_atencion": tx(h["nivel_atencion"])}
-            for h in hipotesis[1:3] if (h.get("puntaje") or 0) > 0
+            for h in hipotesis[1:3]
         ],
         "camino": [[pid, r] for pid, r in camino],
         "profundidad": len(camino),

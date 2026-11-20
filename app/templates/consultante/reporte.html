@@ -42,6 +42,11 @@
   <div class="resultados reporte-hipotesis">
     {% for h in d.hipotesis %}{{ tarjeta_hipotesis(h, plegable=False) }}{% endfor %}
   </div>
+  {% elif d.sin_resultado %}
+  <div class="sin-falla" role="status">
+    <h3>Sin falla identificada</h3>
+    <p>{{ (d.mensaje_sin_resultado or 'Con la evidencia aportada no se identificó una falla en el área; si el síntoma persiste, consulte un técnico.')|tildes }}</p>
+  </div>
   {% else %}
   <p class="texto-2">La consulta no tiene diagnóstico registrado.</p>
   {% endif %}

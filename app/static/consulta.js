@@ -231,7 +231,7 @@
         body: JSON.stringify({ id_pregunta: idPregunta, respuesta: clave }),
       });
       if (r.estado === "finalizado") {
-        mostrarResultado(r.resultado || []);
+        mostrarResultado(r.resultado || [], r.mensaje);
       } else {
         numero += 1;
         actualizarHipotesis(r.hipotesis_en_curso);
@@ -251,7 +251,7 @@
     bloquear(true);
     try {
       const r = await api(`/api/atenciones/${idAtencion}/finalizar`, { method: "POST", body: "{}" });
-      mostrarResultado(r.resultado || []);
+      mostrarResultado(r.resultado || [], r.mensaje);
     } catch (e) {
       mostrarError(e.message);
     } finally {
@@ -270,6 +270,7 @@
         if (p && typeof p === "object") {
           const arr = (v) => (Array.isArray(v) ? v : v ? String(v).split(/[,;]\s*/) : []).filter((x) => String(x).trim());
           return { regla: p.regla || p.codigo || "", premisas: arr(p.premisas), evidencia: p.evidencia, hechos: arr(p.hechos),
+            hechosTexto: arr(p.hechos_texto),
             tipo: TIPOS_PASO[String(p.tipo || "").toLowerCase()] || "", conclusion: p.conclusion || "", texto: p.texto || "" };
         }
         return String(p || "").trim() ? { regla: "", premisas: [], evidencia: null, hechos: [], tipo: "", conclusion: "", texto: String(p) } : null;
@@ -286,7 +287,7 @@
       const premisas = p.premisas.length ?
         `<div class="lt-bloque"><span class="lt-etq">Si</span><ul class="lt-premisas">${p.premisas.map((x) => `<li>${escapar(x)}</li>`).join("")}</ul></div>` : "";
       const hechos = p.hechos.length ?
-        `<div class="lt-bloque"><span class="lt-etq">Entonces</span><span class="lt-hechos">${p.hechos.map((x) => `<span class="lt-hecho" title="${escapar(x)}">${escapar(hechoLegible(x))}</span>`).join("")}</span></div>`
+        `<div class="lt-bloque"><span class="lt-etq">Entonces</span><span class="lt-hechos">${p.hechos.map((x, j) => `<span class="lt-hecho" title="${escapar(x)}">${escapar(p.hechosTexto[j] || hechoLegible(x))}</span>`).join("")}</span></div>`
         : p.conclusion ? `<div class="lt-bloque"><span class="lt-etq">Entonces</span><span class="lt-conclusion-texto">${escapar(p.conclusion)}</span></div>` : "";
       const tipo = p.tipo ? `<span class="insignia gris">${escapar(p.tipo)}</span>` : "";
       return `<li class="lt-paso"><span class="lt-marca" aria-hidden="true"></span>
@@ -335,15 +336,20 @@
     return art;
   }
 
-  function mostrarResultado(hipotesis) {
+  const SIN_FALLA = "Con la evidencia aportada no se identificó una falla en el área; si el síntoma persiste, consulte un técnico.";
+
+  function mostrarResultado(hipotesis, mensaje) {
     el("pantalla-pregunta").classList.add("oculto");
     el("pantalla-resultado").classList.remove("oculto");
+    // el aviso rojo solo aparece si una hipótesis del diagnóstico (certeza >= umbral) lo indica
     el("advertencia").classList.toggle("oculto", !hipotesis.some((h) => h.advertencia));
 
     const cont = el("resultados");
     cont.innerHTML = "";
     if (!hipotesis.length) {
-      cont.innerHTML = '<p class="vacio">Con las respuestas dadas no fue posible identificar una hipótesis de falla.</p>';
+      el("titulo-resultado").textContent = "Sin falla identificada";
+      cont.innerHTML = `<div class="sin-falla" role="status"><h3>Sin falla identificada</h3><p>${escapar(mensaje || SIN_FALLA)}</p></div>`;
+      el("titulo-resultado").focus({ preventScroll: true });
       return;
     }
     hipotesis.forEach((h) => {

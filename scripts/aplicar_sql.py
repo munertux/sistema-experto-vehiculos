@@ -2,9 +2,9 @@
 """Aplica archivos SQL en orden sobre la base indicada en DATABASE_URL.
 
 Uso:
-    python scripts/aplicar_sql.py                      # 05, 06, 07 y 08 (los idempotentes)
+    python scripts/aplicar_sql.py                      # 05, 06, 07, 08 y 09 (los idempotentes)
     python scripts/aplicar_sql.py sql/05_transaccional.sql sql/06_semillas.sql
-    python scripts/aplicar_sql.py --todos              # 01, 02, 05, 06, 07, 08 (BORRA el conocimiento y las atenciones)
+    python scripts/aplicar_sql.py --todos              # 01, 02, 05 a 09 (BORRA el conocimiento y las atenciones)
 """
 import argparse
 import glob
@@ -19,9 +19,9 @@ import psycopg2  # noqa: E402
 from app.datos.conexion import _dsn_desde_env  # noqa: E402
 from app.datos.entorno import cargar_env  # noqa: E402
 
-# En este orden: 07 (DDL aditivo del motor experto) requiere 05; 08 (datos) requiere 07.
+# En este orden: 07 (DDL aditivo del motor experto) requiere 05; 08 (datos) requiere 07; 09 (calidad) requiere 08.
 IDEMPOTENTES = ["sql/05_transaccional.sql", "sql/06_semillas.sql",
-                "sql/07_motor_experto.sql", "sql/08_conocimiento_experto.sql"]
+                "sql/07_motor_experto.sql", "sql/08_conocimiento_experto.sql", "sql/09_calidad_experto.sql"]
 
 
 def aplicar(dsn: str, archivos):

@@ -179,7 +179,7 @@
   {% endfor %}
   <li class="lt-paso lt-conclusion">
     <span class="lt-marca" aria-hidden="true"></span>
-    <div class="lt-cabeza"><span class="lt-titulo">Conclusión: {{ h.nombre }}</span>
+    <div class="lt-cabeza"><span class="lt-titulo">Conclusión: {{ h.nombre|tildes }}</span>
       {% if h.certeza is defined and h.certeza is not none %}<span class="lt-evidencia">certeza {{ h.certeza|certeza }}</span>{% endif %}</div>
   </li>
 </ol>
@@ -193,7 +193,7 @@
 <article class="hipotesis-tarjeta {{ clase }}" aria-labelledby="hip-{{ h.id_hipotesis }}-{{ h.posicion }}">
   <header class="ht-cabeza">
     <span class="ht-posicion" aria-label="Posición {{ h.posicion }}">{{ h.posicion }}</span>
-    <h3 id="hip-{{ h.id_hipotesis }}-{{ h.posicion }}">{{ h.nombre }}</h3>
+    <h3 id="hip-{{ h.id_hipotesis }}-{{ h.posicion }}">{{ h.nombre|tildes }}</h3>
     {{ nivel(h.nivel_atencion) }}
   </header>
   <div class="ht-metricas">
@@ -210,7 +210,7 @@
       <p class="metrica-ayuda">Participación frente a las demás hipótesis.</p>
     </div>
   </div>
-  {% if h.recomendacion %}<p class="recomendacion"><strong>Recomendación:</strong> {{ h.recomendacion }}</p>{% endif %}
+  {% if h.recomendacion %}<p class="recomendacion"><strong>Recomendación:</strong> {{ h.recomendacion|tildes }}</p>{% endif %}
   <div class="resultado-meta">
     <span>Reglas activadas: {{ reglas(h.reglas_activadas) }}</span>
     {% if h.falla_confirmada %}<span class="confirmada">✓ Falla real confirmada</span>{% endif %}

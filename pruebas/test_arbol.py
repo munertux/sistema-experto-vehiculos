@@ -91,7 +91,12 @@ def test_ninguna_hoja_vacia(datos):
                 assert len(nodo["hijos"]) == 2 and nodo["texto"] and nodo["sintoma"]
                 assert {h["rama"] for h in nodo["hijos"]} == {"si", "no"}
             else:
-                assert nodo["hipotesis"] and nodo["id_hipotesis"], (area["nombre"], camino)
+                assert nodo["hipotesis"], (area["nombre"], camino)
+                if nodo["con_evidencia"]:
+                    assert nodo["id_hipotesis"], (area["nombre"], camino)
+                else:   # sin falla identificada: sin hipótesis ni nivel de atención
+                    assert nodo["hipotesis"] == "Sin falla identificada" and nodo["id_hipotesis"] is None
+                    assert nodo["nivel"] == "sin-informacion"
                 assert nodo["nivel_atencion"] and nodo["motivo"]
                 assert 0 <= nodo["probabilidad"] <= 100
                 assert [tuple(x) for x in nodo["camino"]] == list(camino)
@@ -119,10 +124,13 @@ def verificar_caminos(datos, motor):
                     assert len(camino) == datos["profundidad_max"]
                 else:
                     assert pendiente is None, (area["nombre"], camino)
-                lider = motor.hipotesis_ponderadas(memoria)[0]
-                assert lider.hipotesis.id_hipotesis == nodo["id_hipotesis"], (area["nombre"], camino)
-                assert round(lider.probabilidad * 100, 1) == nodo["probabilidad"]
-                assert (lider.puntaje > 0) == nodo["con_evidencia"]
+                diagnostico = motor.diagnostico(memoria)
+                assert bool(diagnostico) == nodo["con_evidencia"], (area["nombre"], camino)
+                if diagnostico:
+                    lider = diagnostico[0]
+                    assert lider.hipotesis.id_hipotesis == nodo["id_hipotesis"], (area["nombre"], camino)
+                    assert round(lider.probabilidad * 100, 1) == nodo["probabilidad"]
+                    assert lider.certeza >= motor.umbral_minimo
             revisados += 1
     assert revisados == sum(a["estadisticas"]["nodos"] for a in datos["areas"])
 
@@ -158,3 +166,19 @@ def test_json_al_dia_con_el_conocimiento(datos, motor_fuente):
     nuevo = generar(adaptador, datos["profundidad_max"])
     for a, b in zip(nuevo["areas"], datos["areas"]):
         assert a == b, f"arbol_datos.json desactualizado en {b['nombre']}: ejecute scripts/generar_arbol_decision.py"
+
+
+def test_ninguna_hoja_sin_evidencia_ordena_detener_el_vehiculo(datos):
+    """P1: una hoja sin hipótesis con certeza suficiente es "Sin falla
+    identificada" y nunca muestra "No debe seguir usándose"."""
+    sin_falla = 0
+    for area in datos["areas"]:
+        for camino, nodo in caminos(area["raiz"]):
+            if nodo["tipo"] != "diagnostico":
+                continue
+            if not nodo["con_evidencia"]:
+                sin_falla += 1
+                assert "usándose" not in nodo["nivel_atencion"], (area["nombre"], camino)
+            if "usándose" in nodo["nivel_atencion"]:
+                assert nodo["con_evidencia"] and nodo["certeza"] >= 0.2, (area["nombre"], camino)
+    assert sin_falla >= 24     # al menos el camino "todo No" de cada área

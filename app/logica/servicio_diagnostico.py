@@ -25,6 +25,11 @@ from app.logica.motor_inferencia import MotorInferencia
 # reproduciendo las respuestas guardadas en atencion_respuesta.
 _SESIONES = {}
 
+# Resultado cuando ninguna hipotesis alcanza la certeza minima (P1):
+# no se presentan como diagnostico hipotesis sin evidencia positiva.
+MENSAJE_SIN_FALLA = ("Con la evidencia aportada no se identificó una falla en el área; "
+                     "si el síntoma persiste, consulte un técnico.")
+
 PATRON_OBD = re.compile(r"^[PCBU][0-9A-F]{4}$")
 
 TESTIGOS_TABLERO = (
@@ -170,6 +175,13 @@ class ServicioDiagnostico:
 
         certeza = ESCALA_CERTEZA[respuesta_clave]
         memoria = sesion["memoria"]
+        if memoria.fue_respondida(pregunta.id_pregunta):
+            # reenvio (doble clic, reintento de red, otra pestana): idempotente,
+            # no vuelve a sumar evidencia ni a guardar la respuesta
+            return self.estado(id_atencion)
+        pendiente = sesion.get("pendiente")
+        if pendiente is not None and pendiente.id_pregunta != pregunta.id_pregunta:
+            raise ErrorNegocio("La pregunta no corresponde a la consulta en curso.")
         self._motor.procesar_respuesta(memoria, pregunta, respuesta_clave, certeza)
         sesion["orden"] += 1
         self._repo_a.guardar_respuesta(id_atencion, id_pregunta, respuesta_clave, certeza, sesion["orden"])
@@ -186,7 +198,21 @@ class ServicioDiagnostico:
 
     def _respuesta_final(self, id_atencion: int) -> dict:
         resultado = self.finalizar(id_atencion)
-        return {"estado": "finalizado", "resultado": resultado, "hipotesis_en_curso": self._top(resultado)}
+        return dict(self.cierre(resultado), estado="finalizado", resultado=resultado,
+                    hipotesis_en_curso=self._top(resultado))
+
+    @staticmethod
+    def cierre(resultado) -> dict:
+        """Distingue un diagnostico de un cierre sin falla identificada:
+        {"resultado_estado": "diagnostico" | "sin_resultado",
+         "sin_resultado": bool, "mensaje": texto para el consultante}."""
+        sin = not resultado
+        return {"resultado_estado": "sin_resultado" if sin else "diagnostico", "sin_resultado": sin,
+                "mensaje": MENSAJE_SIN_FALLA if sin else ""}
+
+    @property
+    def umbral_minimo_certeza(self) -> float:
+        return self._motor.umbral_minimo
 
     @staticmethod
     def _top(resultado) -> list:
@@ -223,7 +249,7 @@ class ServicioDiagnostico:
             return self.resultado_guardado(id_atencion)
         sesion = self._sesion(id_atencion)
         memoria = sesion["memoria"]
-        resultados = self._motor.hipotesis_ponderadas(memoria)
+        resultados = self._motor.diagnostico(memoria)   # [] = sin falla identificada
         por_hipotesis = self._codigos_por_hipotesis(resultados)
         explicaciones = {hp.hipotesis.id_hipotesis: self._motor.como(memoria, hp.hipotesis.id_hipotesis)
                          for hp in resultados}
@@ -253,7 +279,10 @@ class ServicioDiagnostico:
                   "hipotesis": [hipotesis serializadas, top 5],
                   "detenido": bool (el motor concluyo),
                   "motivo": "confianza" | "max_preguntas" | "sin_preguntas" | None (sigue en curso),
-                  "camino": [{"id_pregunta", "respuesta"}] respondidas en orden}."""
+                  "camino": [{"id_pregunta", "respuesta"}] respondidas en orden,
+                  "resultado_estado", "sin_resultado", "mensaje": ver cierre()}.
+        "hipotesis" solo trae las que alcanzan umbral_minimo_certeza (igual
+        que finalizar); vacia = sin falla identificada."""
         area = self._repo_c.area(int(id_area))
         if area is None:
             raise ErrorNegocio("El area seleccionada no existe.")
@@ -278,14 +307,16 @@ class ServicioDiagnostico:
             pregunta = motor.siguiente_pregunta(memoria, area.id_area)
             if pregunta is None:
                 detenido, motivo = True, "sin_preguntas"
-        resultados = motor.hipotesis_ponderadas(memoria)
+        resultados = motor.diagnostico(memoria)
         ids_regla = {i for hp in resultados for i in hp.reglas_activadas}
         codigos = motor._repo.codigos_de_reglas(ids_regla)
         hipotesis = [self._serializar_hipotesis(
             hp, self._sin_repetir([codigos.get(i, str(i)) for i in hp.reglas_activadas]),
             motor.como(memoria, hp.hipotesis.id_hipotesis)) for hp in resultados]
-        return {"siguiente": self._serializar_pregunta(pregunta, memoria, motor), "hipotesis": hipotesis,
-                "detenido": detenido, "motivo": motivo, "camino": camino}
+        cierre = self.cierre(hipotesis) if detenido else {"resultado_estado": "en_curso", "sin_resultado": False,
+                                                           "mensaje": ""}
+        return dict(cierre, siguiente=self._serializar_pregunta(pregunta, memoria, motor),
+                    hipotesis=hipotesis, detenido=detenido, motivo=motivo, camino=camino)
 
     def _motor_de_simulacion(self):
         if self._motor_simulacion is None:
@@ -314,7 +345,8 @@ class ServicioDiagnostico:
         if atencion is None:
             raise ErrorNegocio("La atencion no existe.")
         if atencion.estado != "en_curso":
-            return {"estado": "finalizado", "resultado": self.resultado_guardado(id_atencion)}
+            resultado = self.resultado_guardado(id_atencion)
+            return dict(self.cierre(resultado), estado="finalizado", resultado=resultado)
         sesion = self._sesion(id_atencion)
         return {"estado": "en_curso", "pregunta": self._serializar_pregunta(sesion.get("pendiente"), sesion["memoria"]),
                 "hipotesis_en_curso": self._en_curso(sesion["memoria"])}
@@ -323,7 +355,10 @@ class ServicioDiagnostico:
         """Diagnostico persistido, con el mismo formato de finalizar()."""
         respuestas = {r["id_pregunta"]: r["respuesta"] for r in self._repo_a.respuestas(id_atencion)}
         salida = []
+        umbral = self._motor.umbral_minimo
         for d in self._repo_a.diagnostico(id_atencion):
+            if d.get("certeza") is not None and d["certeza"] < umbral - 1e-9:
+                continue   # diagnosticos antiguos: hipotesis sin evidencia positiva no se presentan
             mejor = self._repo_c.mejor_regla_de_hipotesis(d["id_hipotesis"])
             pasos = d.get("explicacion") or []
             for paso in pasos:   # la recomendacion de una regla compuesta disparada es mas especifica
@@ -420,6 +455,8 @@ class ServicioDiagnostico:
 
     @staticmethod
     def _serializar_hipotesis(hp, codigos=None, como=None):
+        # solo se serializan hipotesis del diagnostico (certeza >= umbral), por
+        # eso la advertencia depende unicamente del nivel de atencion
         return {
             "id_hipotesis": hp.hipotesis.id_hipotesis,
             "nombre": hp.hipotesis.nombre,

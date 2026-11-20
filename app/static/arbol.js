@@ -67,6 +67,8 @@
     (hijos || []).forEach((h) => h && n.appendChild(typeof h === "string" ? document.createTextNode(h) : h));
     return n;
   }
+  // certeza absoluta [0,1] de la hipótesis de la hoja (MYCIN), en 0-100
+  const certezaHoja = (n) => (n.certeza !== undefined && n.certeza !== null ? n.certeza * 100 : n.probabilidad || 0);
   const pct = (v) => (Math.round(v * 10) / 10).toLocaleString("es-CO", { maximumFractionDigits: 1 }) + " %";
   const etiquetaRama = (r) => (r === "si" ? "Sí" : "No");
 
@@ -427,7 +429,7 @@
       const nivel = n.con_evidencia ? (n.nivel || "sin-informacion") : "sin-informacion";
       g.attr("class", `ar-nodo ar-hoja nivel-${nivel}${corte ? " corte" : ""}${n.con_evidencia ? "" : " sin-evidencia"}`);
       const info = NIVELES[nivel] || NIVELES["sin-informacion"];
-      g.attr("aria-label", `Diagnóstico: ${n.hipotesis}, certeza ${pct(n.probabilidad)}, ${info.texto}`);
+      g.attr("aria-label", `Diagnóstico: ${n.hipotesis}, certeza ${pct(certezaHoja(n))}, ${info.texto}`);
       g.append("title").text(n.motivo_texto);
       g.append("rect").attr("class", "ar-forma").attr("width", d.ancho).attr("height", d.alto).attr("rx", 10);
       g.append("rect").attr("class", "ar-franja ar-color-nivel").attr("width", 8).attr("height", d.alto - 2).attr("x", 1).attr("y", 1).attr("rx", 5);
@@ -443,9 +445,9 @@
       const anchoBarra = 110;
       g.append("rect").attr("class", "ar-barra-fondo").attr("x", x).attr("y", y + 2).attr("width", anchoBarra).attr("height", 10).attr("rx", 5);
       g.append("rect").attr("class", "ar-color-nivel").attr("x", x).attr("y", y + 2).attr("rx", 5).attr("height", 10)
-        .attr("width", Math.max(4, anchoBarra * Math.min(1, (n.probabilidad || 0) / 100)));
+        .attr("width", Math.max(4, anchoBarra * Math.min(1, certezaHoja(n) / 100)));
       g.append("text").attr("class", "ar-meta").attr("x", x + anchoBarra + 10).attr("y", y + 12)
-        .text(`Certeza ${pct(n.probabilidad || 0)}`);
+        .text(`Certeza ${pct(certezaHoja(n))}`);
       y += 24;
       // nivel de atención: ícono + texto
       const ic = g.append("g").attr("transform", `translate(${x + 9},${y + 9})`);
@@ -553,9 +555,10 @@
       fila("Caminos que pasan", n.caminos);
     } else {
       c.appendChild(el("h3", { texto: n.con_evidencia ? n.hipotesis : "Sin falla identificada" }));
-      fila("Certeza", pct(n.probabilidad));
+      fila("Certeza", pct(certezaHoja(n)));
+      fila("Probabilidad relativa", pct(n.probabilidad));
       fila("Nivel de atención", n.con_evidencia ? n.nivel_atencion : "—");
-      fila("Recomendación", n.con_evidencia ? n.recomendacion : "Ninguna hipótesis recibió evidencia positiva.");
+      fila("Recomendación", n.recomendacion || "Ninguna hipótesis alcanzó la certeza mínima.");
       fila("Reglas activadas", (n.reglas || []).join(", ") || "—");
       fila("Síntoma confirmado", n.sintoma_confirmado ? "Sí" : "No");
       if (n.alternativas && n.alternativas.length) fila("Alternativas", n.alternativas.map((a) => `${a.hipotesis} (${pct(a.probabilidad)})`).join("; "));
@@ -665,7 +668,7 @@
       const h = d.data;
       c.appendChild(el("p", {}, [el("strong", { texto: h.motivo === "profundidad" ? "Vista cortada. Hipótesis líder: " : "Diagnóstico: " }),
         h.con_evidencia ? h.hipotesis : "Sin falla identificada"]));
-      c.appendChild(el("p", { texto: `Certeza ${pct(h.probabilidad)} · ${h.con_evidencia ? h.nivel_atencion : "sin nivel"}` }));
+      c.appendChild(el("p", { texto: `Certeza ${pct(certezaHoja(h))} · ${h.con_evidencia ? h.nivel_atencion : "sin nivel"}` }));
       c.appendChild(el("p", { class: "ar-vacio", texto: h.motivo_texto + "." }));
     }
   }

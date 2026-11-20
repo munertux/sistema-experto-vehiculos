@@ -21,6 +21,11 @@
       <div class="resultados">
         {% for h in d.hipotesis %}{{ tarjeta_hipotesis(h) }}{% endfor %}
       </div>
+      {% elif d.sin_resultado %}
+      <div class="sin-falla" role="status">
+        <h3>Sin falla identificada</h3>
+        <p>{{ (d.mensaje_sin_resultado or 'Con la evidencia aportada no se identificó una falla en el área; si el síntoma persiste, consulte un técnico.')|tildes }}</p>
+      </div>
       {% else %}
       <p class="vacio">La consulta aún no tiene diagnóstico.</p>
       {% endif %}
@@ -75,7 +80,7 @@
           <select id="id_hipotesis" name="id_hipotesis" required>
             <option value="">Seleccione…</option>
             {% for h in d.hipotesis %}
-            <option value="{{ h.id_hipotesis }}" {{ 'selected' if h.falla_confirmada }}>{{ h.posicion }}. {{ h.nombre }}</option>
+            <option value="{{ h.id_hipotesis }}" {{ 'selected' if h.falla_confirmada }}>{{ h.posicion }}. {{ h.nombre|tildes }}</option>
             {% endfor %}
           </select>
         </div>

@@ -9,7 +9,9 @@ from app.datos.repositorio_conocimiento import RepositorioConocimiento
 from app.logica.entidades import ETIQUETAS_COMBUSTIBLE, ETIQUETAS_TRANSMISION, a_dict, lista_texto
 from app.logica.errores import ErrorNegocio
 from app.logica.modelos import ETIQUETAS_RESPUESTA
+from app.logica.servicio_diagnostico import MENSAJE_SIN_FALLA
 
+SIN_FALLA = "Sin falla identificada"
 ETIQUETAS_ESTADO = {"en_curso": "En curso", "finalizada": "Finalizada"}
 
 
@@ -20,6 +22,8 @@ class ServicioHistorial:
         self._areas = AreaDAO(conexion)
         self._reglas = ReglaDAO(conexion)
         self._repo_c = RepositorioConocimiento(conexion)
+        from app.logica.servicio_diagnostico import ServicioDiagnostico
+        self._diagnostico = ServicioDiagnostico(conexion)
 
     def historial(self, id_consultante: int) -> list:
         salida = []
@@ -37,7 +41,8 @@ class ServicioHistorial:
                 "estado": f["estado"],
                 "estado_etiqueta": ETIQUETAS_ESTADO.get(f["estado"], f["estado"]),
                 "id_hipotesis": f["id_hipotesis"],
-                "hipotesis_principal": f["hipotesis"],
+                "hipotesis_principal": f["hipotesis"] or (
+                    SIN_FALLA if f["estado"] == "finalizada" else None),
                 "probabilidad": round(float(f["probabilidad"]) * 100, 1) if f["probabilidad"] is not None else None,
                 "falla_confirmada": bool(f["falla_confirmada"]),
             })
@@ -80,28 +85,9 @@ class ServicioHistorial:
                 "respuesta_etiqueta": ETIQUETAS_RESPUESTA.get(r["respuesta"], r["respuesta"]),
                 "certeza": r["certeza"],
             })
-        afirmadas = {r["id_pregunta"] for r in respuestas if r["respuesta"] in ("si", "probablemente_si")}
-
-        hipotesis = []
-        for d in self._atenciones.diagnostico(atencion.id_atencion)[:5]:
-            mejor = self._repo_c.mejor_regla_de_hipotesis(d["id_hipotesis"])
-            nivel = mejor["nivel_atencion"] if mejor else "Sin informacion"
-            sintoma = any(p.id_pregunta in afirmadas for p in self._repo_c.preguntas_que_apuntan_a(d["id_hipotesis"]))
-            hipotesis.append({
-                "posicion": d["posicion"],
-                "id_hipotesis": d["id_hipotesis"],
-                "nombre": d["nombre"],
-                "descripcion": d["descripcion"],
-                "puntaje": round(d["puntaje"], 4),
-                "probabilidad": round(d["probabilidad"] * 100, 1),
-                "nivel_atencion": nivel,
-                "recomendacion": mejor["recomendacion"] if mejor else "",
-                "advertencia": nivel.startswith("No debe seguir usandose"),
-                "sintoma_confirmado": sintoma,
-                "reglas_activadas": lista_texto(d["reglas_activadas"]),
-                "falla_confirmada": bool(d["falla_confirmada"]),
-                "observacion": d["observacion"],
-            })
+        # mismo diagnostico que entrega la consulta (certeza, "como", nivel de la
+        # regla compuesta y filtro de certeza minima)
+        hipotesis = self._diagnostico.resultado_guardado(atencion.id_atencion)[:5]
 
         reglas = []
         for h in hipotesis:
@@ -133,4 +119,7 @@ class ServicioHistorial:
             "advertencia": principal["advertencia"] if principal else False,
             "reglas": reglas,
             "falla_confirmada": confirmada,
+            # finalizada sin ninguna hipotesis con evidencia suficiente
+            "sin_resultado": atencion.estado == "finalizada" and not hipotesis,
+            "mensaje_sin_resultado": MENSAJE_SIN_FALLA,
         }

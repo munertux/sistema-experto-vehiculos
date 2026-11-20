@@ -7,7 +7,7 @@ y 06. Asi se prueba contra PostgreSQL real con las 68 reglas sin modificar
 los datos de desarrollo.
   - se_pruebas_motor: conocimiento intacto (solo lectura por las pruebas del motor)
   - se_pruebas: lo usan las pruebas de DAO y servicios (se modifica)
-  - se_pruebas_experto: 01, 02, 05, 06 + 07 y 08 (motor experto)
+  - se_pruebas_experto: 01, 02, 05, 06 + 07, 08 y 09 (motor experto)
 
 Uso en un archivo de pruebas:
     from apoyo_bd import conexion_prueba, conexion_motor  # noqa: F401 (fixtures)
@@ -29,7 +29,8 @@ from app.datos.conexion import Conexion, _dsn_desde_env  # noqa: E402
 from app.datos.entorno import cargar_env  # noqa: E402
 
 ARCHIVOS = ["sql/01_esquema.sql", "sql/02_conocimiento.sql", "sql/05_transaccional.sql", "sql/06_semillas.sql"]
-ARCHIVOS_EXPERTO = ARCHIVOS + ["sql/07_motor_experto.sql", "sql/08_conocimiento_experto.sql"]
+ARCHIVOS_EXPERTO = ARCHIVOS + ["sql/07_motor_experto.sql", "sql/08_conocimiento_experto.sql",
+                               "sql/09_calidad_experto.sql"]
 _CACHE = {}
 
 

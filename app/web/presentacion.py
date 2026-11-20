@@ -42,9 +42,33 @@ _PALABRAS = {
     "especifica": "específica", "especificas": "específicas", "comuniquese": "comuníquese",
     "guion": "guion", "evalua": "evalúa", "quedo": "quedó", "automaticamente": "automáticamente",
     "granulo": "gránulo", "granulos": "gránulos", "informacion": "información",
+    # textos del motor experto (por que / como) y de la base de conocimiento
+    "aqui": "aquí", "arbol": "árbol", "atras": "atrás", "ayudaria": "ayudaría", "bitacora": "bitácora",
+    "combustion": "combustión", "comun": "común", "conclusion": "conclusión", "concluyo": "concluyó",
+    "confirmaria": "confirmaría", "corroidas": "corroídas", "decision": "decisión", "desvio": "desvío",
+    "estan": "están", "esten": "estén", "extension": "extensión", "lider": "líder", "lideres": "líderes",
+    "logica": "lógica", "mayusculas": "mayúsculas", "minima": "mínima", "minimo": "mínimo",
+    "manometro": "manómetro", "modulos": "módulos", "pagina": "página", "paginas": "páginas",
+    "parasito": "parásito", "regimen": "régimen", "ultima": "última", "unica": "única", "vacios": "vacíos",
+    "version": "versión", "dana": "daña", "ultimo": "último", "tecnicos": "técnicos", "mecanicos": "mecánicos",
+    "termico": "térmico", "hidraulicos": "hidráulicos", "electronicamente": "electrónicamente",
+    "rapida": "rápida", "rapidos": "rápidos", "debil": "débil", "util": "útil", "facilmente": "fácilmente",
 }
 _ETIQUETAS = {"si": "Sí", "probablemente si": "Probablemente sí", "no se": "No sé"}
-_PALABRA = re.compile(r"[A-Za-z]+")
+_PALABRA = re.compile(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+")
+# Identificadores de la base (FALLA_CARGA, T:BATERIA, OBD:P0562, R72, ESP/TCS)
+# no llevan tildes: se dejan intactos.
+_IDENTIFICADOR = re.compile(
+    r"((?:T:|OBD:)?\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b|\b(?:T|OBD):[A-Z0-9_]+|\b[A-Z]{4,}\b)")
+# Frases donde la palabra lleva o no tilde segun el contexto.
+_FRASES = (
+    (re.compile(r"\b([Pp]robablemente) si\b"), r"\1 sí"),
+    (re.compile(r"= Si\b"), "= Sí"),
+    (re.compile(r"= No se\b"), "= No sé"),
+    (re.compile(r"\bque si\b"), "que sí"),
+    (re.compile(r"\b([Ee])sta (bien|mal|en|encendid[oa]|\w+ando|\w+iendo)\b"), r"\1stá \2"),
+    (re.compile(r"\b([Nn]o) esta\b"), r"\1 está"),
+)
 
 
 def _restituir(m):
@@ -62,14 +86,25 @@ def _restituir(m):
     return nueva
 
 
+def _tildes_trozo(texto):
+    texto = _PALABRA.sub(_restituir, texto)
+    for patron, reemplazo in _FRASES:
+        texto = patron.sub(reemplazo, texto)
+    return texto
+
+
 def tildes(texto):
+    """Restituye la ortografia de un texto de la base o del motor. Es
+    idempotente (se puede aplicar dos veces) y no altera los codigos en
+    mayusculas (FALLA_CARGA, T:BATERIA, OBD:P0562, R72)."""
     if texto is None:
         return ""
     texto = str(texto)
     etiqueta = _ETIQUETAS.get(texto.strip().lower())
     if etiqueta:
         return etiqueta
-    return _PALABRA.sub(_restituir, texto)
+    partes = _IDENTIFICADOR.split(texto)
+    return "".join(p if i % 2 else _tildes_trozo(p) for i, p in enumerate(partes))
 
 
 def clase_nivel(nivel):

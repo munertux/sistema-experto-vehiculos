@@ -6,11 +6,10 @@ Se conservan las rutas historicas (/api/salud, /api/areas y
 X-CSRF-Token con el token de la sesion. Un consultante solo puede operar
 sobre sus propias atenciones.
 """
-import re
 
 from flask import Blueprint, current_app, jsonify, request, session
 
-from app.web.presentacion import clase_nivel, es_critico, tildes
+from app.web.presentacion import clase_nivel, es_critico, hecho, tildes
 from app.web.seguridad import login_requerido, rol_requerido
 from app.web.servicios import ERRORES_USUARIO, mensaje, servicio
 
@@ -29,16 +28,11 @@ def presentar_pregunta(p):
     return p
 
 
-# Identificadores de la base (FALLA_CARGA, T:BATERIA, OBD:P0562, R72) no llevan tildes.
-_IDENTIFICADOR = re.compile(r"((?:T:|OBD:)?\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b|\b(?:T|OBD):[A-Z0-9_]+|\b[A-Z]{4,}\b)")
-
-
 def tildes_texto(texto):
-    """tildes() sin tocar los codigos en mayusculas."""
+    """tildes() sin tocar los codigos en mayusculas (tildes ya los respeta)."""
     if not texto:
         return texto
-    partes = _IDENTIFICADOR.split(str(texto))
-    return "".join(p if i % 2 else tildes(p) for i, p in enumerate(partes))
+    return tildes(texto)
 
 
 def presentar_como(pasos):
@@ -47,7 +41,9 @@ def presentar_como(pasos):
         if isinstance(paso, dict):
             paso = dict(paso)
             paso["premisas"] = [tildes_texto(x) for x in paso.get("premisas") or []]
-            for clave in ("texto", "conclusion", "recomendacion"):
+            # los hechos siguen como codigos (FALLA_CARGA); su forma legible va aparte
+            paso["hechos_texto"] = [hecho(x) for x in paso.get("hechos") or []]
+            for clave in ("texto", "conclusion", "recomendacion", "nivel_atencion"):
                 if paso.get(clave):
                     paso[clave] = tildes_texto(paso[clave])
         else:
@@ -62,7 +58,7 @@ def presentar_en_curso(hipotesis):
         h = dict(h)
         nivel = h.get("nivel_atencion") or ""
         h["nombre"] = tildes(h.get("nombre"))
-        h["nivel_texto"] = tildes(nivel)
+        h["nivel_texto"] = h["nivel_atencion"] = tildes(nivel)
         h["nivel_clase"] = clase_nivel(nivel)
         salida.append(h)
     return salida
@@ -76,14 +72,27 @@ def presentar_resultado(hipotesis):
         h["nombre"] = tildes(h.get("nombre"))
         h["descripcion"] = tildes(h.get("descripcion"))
         h["recomendacion"] = tildes(h.get("recomendacion"))
-        h["nivel_texto"] = tildes(nivel)
+        h["nivel_texto"] = h["nivel_atencion"] = tildes(nivel)
         h["nivel_clase"] = clase_nivel(nivel)
-        h["advertencia"] = bool(h.get("advertencia")) or es_critico(nivel)
+        # el servicio decide la advertencia (solo hipotesis con certeza >= umbral);
+        # si no la envia, se deduce del nivel
+        h["advertencia"] = bool(h["advertencia"]) if "advertencia" in h else es_critico(nivel)
         h["reglas_activadas"] = list(h.get("reglas_activadas") or [])
         if "como" in h:
             h["como"] = presentar_como(h.get("como"))
         salida.append(h)
     return salida
+
+
+MENSAJE_SIN_FALLA = ("Con la evidencia aportada no se identificó una falla en el área; "
+                     "si el síntoma persiste, consulte un técnico.")
+
+
+def _cierre(r):
+    """Campos que distinguen "sin falla identificada" de un diagnostico."""
+    sin = not r.get("resultado")
+    return {"resultado_estado": "sin_resultado" if sin else "diagnostico", "sin_resultado": sin,
+            "mensaje": tildes(r.get("mensaje")) if sin and r.get("mensaje") else (MENSAJE_SIN_FALLA if sin else "")}
 
 
 def es_propia(id_atencion):
@@ -163,6 +172,7 @@ def estado(id_atencion):
         return _error(exc)
     if r.get("estado") == "finalizado":
         r["resultado"] = presentar_resultado(r.get("resultado"))
+        r.update(_cierre(r))
     else:
         r["pregunta"] = presentar_pregunta(r.get("pregunta"))
     if "hipotesis_en_curso" in r:
@@ -187,6 +197,7 @@ def responder(id_atencion):
         return _error(exc)
     if resultado.get("estado") == "finalizado":
         resultado["resultado"] = presentar_resultado(resultado.get("resultado"))
+        resultado.update(_cierre(resultado))
     else:
         resultado["pregunta"] = presentar_pregunta(resultado.get("pregunta"))
     if "hipotesis_en_curso" in resultado:
@@ -203,7 +214,9 @@ def finalizar(id_atencion):
         resultado = servicio("diagnostico").finalizar(id_atencion)
     except ERRORES_USUARIO as exc:
         return _error(exc)
-    return jsonify({"resultado": presentar_resultado(resultado)})
+    salida = {"resultado": presentar_resultado(resultado)}
+    salida.update(_cierre(salida))
+    return jsonify(salida)
 
 
 @bp.post("/atenciones/<int:id_atencion>/confirmar")

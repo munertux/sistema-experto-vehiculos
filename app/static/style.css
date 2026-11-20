@@ -596,3 +596,9 @@ details.como[open] .como-flecha { transform: rotate(90deg); }
   .medidor i { transition: none; }
   .metrica-ayuda { display: none; }
 }
+
+/* Cierre sin falla identificada (ninguna hipotesis alcanzo la certeza minima) */
+.sin-falla { border: 1px solid var(--borde, #d7dce3); border-left: 4px solid var(--azul); border-radius: var(--radio);
+  padding: 14px 16px; background: var(--tarjeta); }
+.sin-falla h3 { margin: 0 0 6px; font-size: 1.02rem; }
+.sin-falla p { margin: 0; color: var(--texto-2, inherit); }

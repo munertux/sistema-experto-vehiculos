@@ -22,12 +22,20 @@ Extension a sistema experto (se conserva intacto el algoritmo del manual):
 from app.logica.modelos import certeza_a_evidencia, ETIQUETAS_RESPUESTA, Granulo, HipotesisPonderada
 
 SATISFECHA, PENDIENTE, BLOQUEADA = "satisfecha", "pendiente", "bloqueada"
+UMBRAL_MINIMO_CERTEZA = 0.20
 
 
 class MotorInferencia:
     def __init__(self, repo_conocimiento):
         self._repo = repo_conocimiento
-        self._p = repo_conocimiento.parametros()
+        self._p = dict(repo_conocimiento.parametros())
+        # certeza minima para presentar una hipotesis como diagnostico
+        # (sql/09; si la base aun no lo tiene se usa 0,20)
+        self._p.setdefault("umbral_minimo_certeza", UMBRAL_MINIMO_CERTEZA)
+
+    @property
+    def umbral_minimo(self) -> float:
+        return float(self._p["umbral_minimo_certeza"])
 
     # ---------------------------------------------------------- iniciar
     def iniciar(self, id_area: int, memoria, testigos=None, codigos_obd=None):
@@ -208,8 +216,11 @@ class MotorInferencia:
         hipotesis activa tiene preguntas pendientes, se evalua contraste
         con otra area (ver _pregunta_de_contraste)."""
         reglas = None
+        descartadas = self._areas_descartadas(memoria, id_area_inicial)
         for id_h, _puntaje in memoria.ranking():
             for pregunta in self._repo.preguntas_que_apuntan_a(id_h):
+                if pregunta.id_area in descartadas:
+                    continue
                 if not memoria.fue_respondida(pregunta.id_pregunta):
                     memoria.motivo = {"tipo": "directa", "id_hipotesis": id_h, "id_pregunta": pregunta.id_pregunta}
                     return pregunta
@@ -223,12 +234,27 @@ class MotorInferencia:
                 if hallada:
                     id_p, cadena = hallada
                     pregunta = self._repo.pregunta(id_p)
-                    if pregunta is None:
+                    if pregunta is None or pregunta.id_area in descartadas:
                         continue
                     memoria.motivo = {"tipo": "compuesta", "id_hipotesis": id_h, "id_pregunta": id_p,
                                       "id_regla": regla["id_regla"], "cadena": cadena}
                     return pregunta
         return self._pregunta_de_contraste(memoria, id_area_inicial)
+
+    def _areas_descartadas(self, memoria, id_area_inicial: int) -> set:
+        """Areas distintas de la inicial cuya pregunta de entrada (abierta
+        por contraste) el consultante nego (certeza < 0,5): en el arbol del
+        manual la rama 'No' de la entrada no desciende a sus preguntas
+        especificas. El area inicial se recorre siempre (la eligio el
+        consultante)."""
+        descartadas = set()
+        for id_p, certeza in memoria.certezas.items():
+            if certeza >= 0.5:
+                continue
+            pregunta = self._repo.pregunta(id_p)
+            if pregunta is not None and pregunta.es_entrada and pregunta.id_area != id_area_inicial:
+                descartadas.add(pregunta.id_area)
+        return descartadas
 
     def _pregunta_pendiente(self, regla, memoria, productoras, cadena, visitados=frozenset()):
         """Primera pregunta sin responder que ayudaria a disparar la regla
@@ -301,9 +327,17 @@ class MotorInferencia:
         return self.sintoma_confirmado(memoria, id_lider)
 
     # -------------------------------------------------------- ponderar
-    def hipotesis_ponderadas(self, memoria, n: int = None):
+    def diagnostico(self, memoria, n: int = None):
+        """Hipotesis que se presentan como diagnostico: solo las que tienen
+        evidencia positiva suficiente (certeza >= umbral_minimo_certeza).
+        Lista vacia = "sin falla identificada"."""
+        return self.hipotesis_ponderadas(memoria, n, minimo_certeza=self.umbral_minimo)
+
+    def hipotesis_ponderadas(self, memoria, n: int = None, minimo_certeza: float = None):
         n = int(self._p["num_hipotesis"]) if n is None else int(n)
         ranking = memoria.ranking()
+        if minimo_certeza is not None:
+            ranking = [(h, p) for h, p in ranking if memoria.certeza(h) >= minimo_certeza - 1e-9]
         mejores = {}
 
         def mejor(id_h):
