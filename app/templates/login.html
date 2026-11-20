@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ingreso · Sistema experto de diagnóstico vehicular</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="login-fondo">
+    <form class="login-card" method="post" action="{{ url_for('autenticacion.login', siguiente=request.args.get('siguiente')) }}" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="login-marca">
+        <span class="brand-marca" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M4 13l2-5a2 2 0 0 1 1.9-1.4h8.2A2 2 0 0 1 18 8l2 5v4H4z"/><circle cx="7.5" cy="17" r="1.6"/><circle cx="16.5" cy="17" r="1.6"/></svg>
+        </span>
+        <div>
+          <h1>Sistema experto de diagnóstico de fallas en vehículos</h1>
+          <p>Universidad Manuela Beltrán · Acceso restringido</p>
+        </div>
+      </div>
+
+      {% with mensajes = get_flashed_messages(with_categories=true) %}
+      {% for categoria, mensaje in mensajes %}
+      <div class="aviso {{ categoria if categoria in ('exito', 'error', 'info') else 'info' }}" style="margin-bottom:14px">{{ mensaje }}</div>
+      {% endfor %}
+      {% endwith %}
+      {% if error %}
+      <div class="aviso error" role="alert" style="margin-bottom:14px">{{ error }}</div>
+      {% endif %}
+
+      <div class="campo">
+        <label for="usuario">Usuario</label>
+        <input type="text" id="usuario" name="usuario" value="{{ usuario }}" required autofocus autocomplete="username">
+      </div>
+      <div class="campo">
+        <label for="clave">Contraseña</label>
+        <input type="password" id="clave" name="clave" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="boton primario grande" style="width:100%; margin-top:6px;">Ingresar</button>
+
+      <p class="login-pie">Tras cinco intentos fallidos la cuenta se bloquea durante 15 minutos. La sesión se cierra después de 15 minutos de inactividad.</p>
+    </form>
+  </div>
+</body>
+</html>
