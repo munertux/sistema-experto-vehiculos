@@ -6,7 +6,9 @@ from apoyo_bd import conexion_prueba, unico  # noqa: F401 (fixture)
 from app.datos.dao.usuario_dao import UsuarioDAO
 from app.logica.errores import ErrorNegocio
 from app.logica.servicio_administracion import ServicioAdministracion
-from app.logica.servicio_autenticacion import ServicioAutenticacion, MAX_INTENTOS, MINUTOS_BLOQUEO
+from app.logica.servicio_autenticacion import (MAX_INTENTOS, MENSAJE_CREDENCIALES,
+                                               MINUTOS_BLOQUEO,
+                                               ServicioAutenticacion)
 
 CLAVE = "Prueba2026x"
 
@@ -42,28 +44,34 @@ def test_login_empleado(conexion_prueba, auth, rol):
     assert sesion["rol"] == rol and sesion["id_empleado"] is not None and sesion["id_consultante"] is None
 
 
+def _mensaje(auth, usuario, clave):
+    with pytest.raises(ErrorNegocio) as info:
+        auth.autenticar(usuario, clave)
+    return str(info.value)
+
+
 def test_clave_incorrecta_y_usuario_inexistente(conexion_prueba, auth):
-    nombre, _ = crear(conexion_prueba)
-    with pytest.raises(ErrorNegocio, match="incorrectos.*4 intento"):
-        auth.autenticar(nombre, "otra-clave1")
-    with pytest.raises(ErrorNegocio, match="incorrectos"):
-        auth.autenticar(unico("nadie"), CLAVE)
+    """H-05: el mismo mensaje exacto, sin contador de intentos restantes."""
+    nombre, id_u = crear(conexion_prueba)
+    m_existente = _mensaje(auth, nombre, "otra-clave1")
+    m_inexistente = _mensaje(auth, unico("nadie"), CLAVE)
+    assert m_existente == m_inexistente == MENSAJE_CREDENCIALES
+    assert "intento(s)" not in m_existente and "Le quedan" not in m_existente
+    assert UsuarioDAO(conexion_prueba).obtener(id_u).intentos_fallidos == 1   # se sigue contando
     with pytest.raises(ErrorNegocio):
         auth.autenticar("", "")
 
 
 def test_bloqueo_tras_cinco_intentos(conexion_prueba, auth):
     nombre, id_u = crear(conexion_prueba)
-    for _ in range(4):
-        with pytest.raises(ErrorNegocio, match="incorrectos"):
-            auth.autenticar(nombre, "mala-clave1")
-    with pytest.raises(ErrorNegocio, match="bloqueado 15 minutos"):
-        auth.autenticar(nombre, "mala-clave1")
+    for _ in range(5):
+        assert _mensaje(auth, nombre, "mala-clave1") == MENSAJE_CREDENCIALES
     u = UsuarioDAO(conexion_prueba).obtener(id_u)
     assert u.estado == "bloqueado" and u.bloqueo_vigente
-    # aun con la clave correcta sigue bloqueado
-    with pytest.raises(ErrorNegocio, match="bloqueado temporalmente"):
-        auth.autenticar(nombre, CLAVE)
+    # aun con la clave correcta sigue bloqueado, con el mensaje generico
+    # (no revela el bloqueo ni sirve de oraculo de la clave)
+    assert _mensaje(auth, nombre, CLAVE) == MENSAJE_CREDENCIALES
+    assert _mensaje(auth, unico("nadie"), CLAVE) == MENSAJE_CREDENCIALES
 
 
 def test_bloqueo_vencido_se_libera(conexion_prueba, auth):
@@ -90,12 +98,16 @@ def test_inactivo_y_bloqueo_administrativo(conexion_prueba, auth):
     admin = ServicioAdministracion(conexion_prueba)
     nombre, id_u = crear(conexion_prueba)
     admin.activar(id_u, False)
-    with pytest.raises(ErrorNegocio, match="inactivo"):
-        auth.autenticar(nombre, CLAVE)
+    # generico con cualquier clave: la clave real no se verifica, asi no hay
+    # oraculo para adivinarla en cuentas sin contador de intentos
+    assert _mensaje(auth, nombre, "mala-clave1") == MENSAJE_CREDENCIALES
+    assert _mensaje(auth, nombre, CLAVE) == MENSAJE_CREDENCIALES
     admin.activar(id_u, True)
     admin.bloquear(id_u)
-    with pytest.raises(ErrorNegocio, match="bloqueado por el administrador"):
-        auth.autenticar(nombre, CLAVE)
+    assert _mensaje(auth, nombre, "mala-clave1") == MENSAJE_CREDENCIALES
+    assert _mensaje(auth, nombre, CLAVE) == MENSAJE_CREDENCIALES
+    u = UsuarioDAO(conexion_prueba).obtener(id_u)
+    assert u.estado == "bloqueado" and u.bloqueado_hasta is None   # el fallo no altera el estado
     admin.desbloquear(id_u)
     assert auth.autenticar(nombre, CLAVE)["id_usuario"] == id_u
 

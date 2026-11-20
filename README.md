@@ -21,7 +21,30 @@ pip install -r requirements.txt
 export DATABASE_URL="postgresql://usuario:clave@localhost:5432/sistema_experto_vehiculos?sslmode=disable"
 export SE_CLAVE_HASH="<hash generado con werkzeug.security.generate_password_hash>"
 export COOKIE_SEGURA=0
+export FLASK_DEBUG=1          # o SE_ENTORNO=desarrollo, o defina SECRET_KEY
 python main.py   # http://127.0.0.1:8000
 ```
 
-En Azure App Service se arranca con `gunicorn --bind=0.0.0.0 --timeout 600 --workers 1 main:app`.
+Pruebas: `SE_ENTORNO=pruebas` lo fija `pruebas/conftest.py`; basta `pytest -q pruebas`.
+
+## Despliegue en Azure App Service
+
+Comando de inicio (Configuración → Configuración general → Comando de inicio):
+
+```bash
+gunicorn --bind=0.0.0.0 --timeout 120 --workers 2 --threads 4 main:app
+```
+
+- Varios workers son seguros: la memoria de trabajo de cada consulta se reconstruye desde la base de datos.
+- `gunicorn.conf.py` (se carga solo desde la raíz) oculta la cabecera `Server: gunicorn`.
+
+Variables de entorno:
+
+| Variable | Obligatoria | Uso |
+|----------|-------------|-----|
+| `SECRET_KEY` | **Sí** | Firma de sesiones y CSRF. Sin ella la app **no arranca** en producción. Genérela con `python -c "import secrets; print(secrets.token_hex(32))"` y debe ser la misma en todos los workers e instancias. |
+| `DATABASE_URL` o `AZURE_POSTGRESQL_CONNECTIONSTRING` | Sí | Conexión a PostgreSQL. |
+| `COOKIE_SEGURA` | No (por defecto `1`) | Cookie de sesión solo por HTTPS. |
+| `PROXY_SALTOS` | No (por defecto `1`) | Proxies de confianza para `X-Forwarded-For`/`-Proto` (Azure antepone uno). `0` si el servidor queda expuesto sin proxy. |
+
+Controles de seguridad de la capa web (`app/web/seguridad.py`): límite por IP de POST a `/login` (20 cada 5 min) y a `/cuenta/clave` (10 cada 5 min), tope de 5 fallos de la contraseña actual por usuario cada 15 min, HSTS bajo HTTPS, Content-Security-Policy sin `'unsafe-inline'` en scripts (todo el JS está en `app/static`; D3 solo desde cdnjs con SRI) y mensaje de ingreso único que no revela qué usuarios existen. El límite vive en la memoria de cada worker: con 2 workers el máximo efectivo por IP es el doble.

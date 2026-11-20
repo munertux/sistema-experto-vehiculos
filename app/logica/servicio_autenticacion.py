@@ -13,7 +13,9 @@ from app.logica.errores import ErrorNegocio
 MAX_INTENTOS = 5
 MINUTOS_BLOQUEO = 15
 LONGITUD_MINIMA_CLAVE = 8
-MENSAJE_CREDENCIALES = "Usuario o contrasena incorrectos."
+MENSAJE_CREDENCIALES = ("Usuario o contraseña incorrectos. Por seguridad, tras "
+                        f"{MAX_INTENTOS} intentos fallidos el acceso se suspende {MINUTOS_BLOQUEO} minutos.")
+
 # Hash ficticio para que un usuario inexistente tarde lo mismo que uno real.
 _HASH_FICTICIO = generate_password_hash("clave-ficticia-para-tiempo-constante")
 
@@ -43,30 +45,32 @@ class ServicioAutenticacion:
         if not nombre_usuario or not clave:
             raise ErrorNegocio("Ingrese el usuario y la contrasena.")
 
+        # H-05: el mismo mensaje para usuario inexistente, clave incorrecta y
+        # bloqueo temporal, para no revelar que cuentas existen. El estado
+        # inactivo o el bloqueo administrativo solo se informan a quien ya
+        # dio la clave correcta.
         usuario = self._usuarios.obtener_por_nombre(nombre_usuario)
         if usuario is None:
             check_password_hash(_HASH_FICTICIO, clave)
             raise ErrorNegocio(MENSAJE_CREDENCIALES)
 
-        if usuario.estado == "inactivo":
-            raise ErrorNegocio("El usuario esta inactivo. Comuniquese con el administrador.")
-        if usuario.estado == "bloqueado":
-            if usuario.bloqueado_hasta is None:
-                raise ErrorNegocio("El usuario esta bloqueado por el administrador.")
+        if usuario.estado == "bloqueado" and usuario.bloqueado_hasta is not None:
             if usuario.bloqueo_vigente:
-                raise ErrorNegocio(
-                    f"El usuario esta bloqueado temporalmente por {MAX_INTENTOS} intentos fallidos. "
-                    f"Intente de nuevo en {max(1, usuario.minutos_restantes or 1)} minuto(s).")
+                # No se verifica la clave real: durante el bloqueo no hay
+                # oraculo para seguir probando contrasenas.
+                check_password_hash(_HASH_FICTICIO, clave)
+                raise ErrorNegocio(MENSAJE_CREDENCIALES)
             self._usuarios.liberar_bloqueo_vencido(usuario.id_usuario)
 
+        if usuario.estado == "inactivo" or (usuario.estado == "bloqueado" and usuario.bloqueado_hasta is None):
+            # Sin contador de intentos en estas cuentas: verificar la clave real
+            # daria un oraculo para adivinarla sin limite.
+            check_password_hash(_HASH_FICTICIO, clave)
+            raise ErrorNegocio(MENSAJE_CREDENCIALES)
+
         if not check_password_hash(usuario.contrasena_hash, clave):
-            r = self._usuarios.registrar_intento_fallido(usuario.id_usuario, MAX_INTENTOS, MINUTOS_BLOQUEO)
-            if r["estado"] == "bloqueado":
-                raise ErrorNegocio(
-                    f"Contrasena incorrecta. El usuario quedo bloqueado {MINUTOS_BLOQUEO} minutos "
-                    f"por {MAX_INTENTOS} intentos fallidos.")
-            restantes = MAX_INTENTOS - r["intentos_fallidos"]
-            raise ErrorNegocio(f"{MENSAJE_CREDENCIALES} Le quedan {restantes} intento(s).")
+            self._usuarios.registrar_intento_fallido(usuario.id_usuario, MAX_INTENTOS, MINUTOS_BLOQUEO)
+            raise ErrorNegocio(MENSAJE_CREDENCIALES)
 
         self._usuarios.registrar_acceso(usuario.id_usuario)
         return self.sesion_de(usuario.id_usuario)

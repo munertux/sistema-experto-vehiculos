@@ -81,6 +81,7 @@ def _datos():
 
 
 def crear_app_simulada():
+    os.environ.setdefault("SE_ENTORNO", "desarrollo")   # main exige SECRET_KEY fuera de desarrollo
     from pruebas import test_web as tw
     from main import crear_app
     testigos, preguntas, evolucion, resultado = _datos()

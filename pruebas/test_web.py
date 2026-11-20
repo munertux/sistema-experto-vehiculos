@@ -399,7 +399,7 @@ def test_detalle_muestra_advertencia_y_tildes(cliente):
 def test_reporte_tiene_estilos_de_impresion(cliente):
     ingresar(cliente, "consultante1")
     html = cliente.get("/historial/500/reporte").get_data(as_text=True)
-    assert "window.print()" in html and "Reporte de diagnóstico vehicular" in html
+    assert "data-imprimir" in html and "Reporte de diagnóstico vehicular" in html
 
 
 # ------------------------------------------------------------------ CSRF

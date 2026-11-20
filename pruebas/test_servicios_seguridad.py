@@ -20,7 +20,7 @@ def test_bloqueo_automatico_no_expulsa_y_bloqueo_manual_si(conexion_prueba):
     for _ in range(5):
         with pytest.raises(ErrorNegocio):
             aut.autenticar(nombre, "incorrecta1")
-    with pytest.raises(ErrorNegocio, match="bloqueado"):
+    with pytest.raises(ErrorNegocio, match="incorrectos"):
         aut.autenticar(nombre, "Clave2026z")          # el bloqueo impide nuevos ingresos
     assert aut.sesion_vigente(id_u, "consultante", version)    # pero no cierra la sesion abierta
     assert aut.version_sesion(id_u) == version

@@ -34,7 +34,7 @@
             <a class="boton chico" href="{{ url_for('consultante.consulta_nueva', vehiculo=v.id_vehiculo) }}">Consultar</a>
             <a class="boton chico" href="{{ url_for('consultante.vehiculo_editar', id_vehiculo=v.id_vehiculo) }}">Editar</a>
             <form class="en-linea" method="post" action="{{ url_for('consultante.vehiculo_estado', id_vehiculo=v.id_vehiculo, accion='desactivar') }}"
-                  onsubmit="return confirm('¿Retirar el vehículo {{ v.placa }}? Su historial de consultas se conserva.');">
+                  data-confirmar="¿Retirar el vehículo {{ v.placa }}? Su historial de consultas se conserva.">
               {{ csrf() }}<button class="boton chico peligro" type="submit">Retirar</button>
             </form>
           </div>
